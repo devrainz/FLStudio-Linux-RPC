@@ -1,10 +1,12 @@
- #!/usr/bin/env bash
+#!/usr/bin/env bash
 
 set -e
 
 APP_NAME="FLStudioRPC"
 INSTALL_DIR="/opt/flstudio-rpc"
 DESKTOP_FILE="/usr/share/applications/flstudiorpc.desktop"
+ICON_DIR="/usr/share/icons/hicolor/128x128/apps"
+ICON_FILE="$ICON_DIR/flstudio.png"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
@@ -32,7 +34,7 @@ if [[ "$(uname -m)" != "x86_64" ]]; then
 fi
 
 APP_SOURCE="$SCRIPT_DIR/FLStudioRPC"
-ICON_SOURCE="$SCRIPT_DIR/Icons"
+ICON_SOURCE="$SCRIPT_DIR/Icons/hicolor/128x128/apps/flstudio.png"
 
 if [[ ! -f "$APP_SOURCE" ]]; then
     echo "ERROR: FLStudioRPC executable was not found."
@@ -43,8 +45,8 @@ if [[ ! -f "$APP_SOURCE" ]]; then
     exit 1
 fi
 
-if [[ ! -d "$ICON_SOURCE" ]]; then
-    echo "ERROR: Icons directory was not found."
+if [[ ! -f "$ICON_SOURCE" ]]; then
+    echo "ERROR: FL Studio icon was not found."
     echo
     echo "Expected:"
     echo "  $ICON_SOURCE"
@@ -55,28 +57,22 @@ fi
 echo "[1/5] Installing application..."
 
 rm -rf "$INSTALL_DIR"
-
 mkdir -p "$INSTALL_DIR"
 
 cp "$APP_SOURCE" "$INSTALL_DIR/$APP_NAME"
-cp -a "$ICON_SOURCE" "$INSTALL_DIR/Icons"
-
 chmod +x "$INSTALL_DIR/$APP_NAME"
 
 echo "      Installed to:"
-echo "      $INSTALL_DIR"
+echo "      $INSTALL_DIR/$APP_NAME"
 
 echo
 echo "[2/5] Installing application icon..."
 
-ICON_PATH="$INSTALL_DIR/Icons/hicolor/128x128/apps/flstudio.png"
+mkdir -p "$ICON_DIR"
+cp "$ICON_SOURCE" "$ICON_FILE"
+chmod 644 "$ICON_FILE"
 
-if [[ ! -f "$ICON_PATH" ]]; then
-    echo "ERROR: Installed icon was not found."
-    exit 1
-fi
-
-echo "      $ICON_PATH"
+echo "      $ICON_FILE"
 
 echo
 echo "[3/5] Installing desktop entry..."
@@ -89,7 +85,7 @@ Type=Application
 Name=FL Studio Discord RPC
 Comment=Discord Rich Presence for FL Studio on Linux
 Exec=$INSTALL_DIR/$APP_NAME
-Icon=$ICON_PATH
+Icon=flstudio
 Terminal=false
 Categories=Utility;
 StartupNotify=false

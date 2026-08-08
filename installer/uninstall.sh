@@ -4,6 +4,7 @@ set -e
 
 INSTALL_DIR="/opt/flstudio-rpc"
 DESKTOP_FILE="/usr/share/applications/flstudiorpc.desktop"
+ICON_FILE="/usr/share/icons/hicolor/128x128/apps/flstudio.png"
 
 echo
 echo "========================================"
@@ -20,7 +21,7 @@ if [[ "$EUID" -ne 0 ]]; then
     exit 1
 fi
 
-echo "[1/3] Removing application..."
+echo "[1/4] Removing application..."
 
 if [[ -d "$INSTALL_DIR" ]]; then
     rm -rf "$INSTALL_DIR"
@@ -30,7 +31,7 @@ else
 fi
 
 echo
-echo "[2/3] Removing desktop entry..."
+echo "[2/4] Removing desktop entry..."
 
 if [[ -f "$DESKTOP_FILE" ]]; then
     rm -f "$DESKTOP_FILE"
@@ -40,7 +41,17 @@ else
 fi
 
 echo
-echo "[3/3] Updating desktop database..."
+echo "[3/4] Removing application icon..."
+
+if [[ -f "$ICON_FILE" ]]; then
+    rm -f "$ICON_FILE"
+    echo "      Removed $ICON_FILE"
+else
+    echo "      Application icon not found."
+fi
+
+echo
+echo "[4/4] Updating desktop database..."
 
 if command -v update-desktop-database >/dev/null 2>&1; then
     update-desktop-database /usr/share/applications >/dev/null 2>&1 || true
