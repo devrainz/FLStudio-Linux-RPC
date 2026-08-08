@@ -1,0 +1,9 @@
+[Icon Theme]
+Name=hicolor
+Comment=FLStudioRPC icons
+Directories=128x128/apps
+
+[128x128/apps]
+Size=128
+Type=Fixed
+Context=Applications
