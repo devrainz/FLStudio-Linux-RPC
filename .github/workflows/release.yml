@@ -43,7 +43,7 @@ jobs:
           latest_tag=$(git tag --sort=-v:refname | head -n 1)
 
           if [[ -z "$latest_tag" ]]; then
-            latest_tag="v1.0.2"
+            latest_tag="v1.0.0"
           fi
 
           echo "Latest tag: $latest_tag"
