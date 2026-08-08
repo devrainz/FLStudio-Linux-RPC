@@ -12,6 +12,7 @@ on:
           - patch
           - minor
           - major
+
       release_notes:
         description: "Custom release notes (optional)"
         required: false
@@ -30,7 +31,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Setup .NET
+      - name: Setup .NET 8
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: "8.0.x"
@@ -41,7 +42,7 @@ jobs:
         run: |
           latest_tag=$(git tag --sort=-v:refname | head -n 1)
 
-          if [ -z "$latest_tag" ]; then
+          if [[ -z "$latest_tag" ]]; then
             latest_tag="v1.0.2"
           fi
 
@@ -51,13 +52,15 @@ jobs:
       - name: Calculate new version
         id: new_version
         shell: bash
+        env:
+          CURRENT_TAG: ${{ steps.get_tag.outputs.current_tag }}
+          VERSION_BUMP: ${{ github.event.inputs.version_bump }}
         run: |
-          current_tag="${{ steps.get_tag.outputs.current_tag }}"
-          version_only="${current_tag#v}"
+          version="${CURRENT_TAG#v}"
 
-          IFS='.' read -r major minor patch <<< "$version_only"
+          IFS='.' read -r major minor patch <<< "$version"
 
-          case "${{ github.event.inputs.version_bump }}" in
+          case "$VERSION_BUMP" in
             major)
               major=$((major + 1))
               minor=0
@@ -72,10 +75,11 @@ jobs:
               ;;
           esac
 
-          new_tag="v${major}.${minor}.${patch}"
-          new_version="${major}.${minor}.${patch}"
+          new_version="$major.$minor.$patch"
+          new_tag="v$new_version"
 
-          echo "New version: $new_tag"
+          echo "New version: $new_version"
+          echo "New tag: $new_tag"
 
           echo "new_tag=$new_tag" >> "$GITHUB_OUTPUT"
           echo "new_version=$new_version" >> "$GITHUB_OUTPUT"
@@ -83,68 +87,74 @@ jobs:
       - name: Restore dependencies
         run: dotnet restore
 
-      - name: Build Linux x64 release
+      - name: Publish Linux x64 application
         run: |
           dotnet publish FLStudioRPC.csproj \
-            -c Release \
-            -r linux-x64 \
+            --configuration Release \
+            --runtime linux-x64 \
             --self-contained true \
-            -p:PublishSingleFile=true \
-            -p:IncludeNativeLibrariesForSelfExtract=true \
-            -p:DebugType=None \
-            -p:DebugSymbols=false \
-            -o publish/linux-x64
+            --output publish/linux-x64 \
+            /p:PublishSingleFile=true \
+            /p:IncludeNativeLibrariesForSelfExtract=true
 
       - name: Prepare release package
         shell: bash
+        env:
+          VERSION: ${{ steps.new_version.outputs.new_version }}
         run: |
-          set -e
+          PACKAGE_DIR="release/FLStudioRPC-linux-x64"
+          ARCHIVE="FLStudioRPC-linux-x64-v${VERSION}.tar.gz"
 
           rm -rf release
-          mkdir -p release/FLStudioRPC-linux-x64
+          mkdir -p "$PACKAGE_DIR"
 
-          cp publish/linux-x64/FLStudioRPC \
-             release/FLStudioRPC-linux-x64/
+          cp publish/linux-x64/FLStudioRPC "$PACKAGE_DIR/FLStudioRPC"
 
-          cp -r Icons \
-             release/FLStudioRPC-linux-x64/
+          cp -a Icons "$PACKAGE_DIR/Icons"
 
-          cp installer/setup.sh \
-             release/FLStudioRPC-linux-x64/
+          cp installer/setup.sh "$PACKAGE_DIR/setup.sh"
+          cp installer/uninstall.sh "$PACKAGE_DIR/uninstall.sh"
 
-          cp installer/uninstall.sh \
-             release/FLStudioRPC-linux-x64/
+          chmod +x \
+            "$PACKAGE_DIR/FLStudioRPC" \
+            "$PACKAGE_DIR/setup.sh" \
+            "$PACKAGE_DIR/uninstall.sh"
 
-          chmod +x release/FLStudioRPC-linux-x64/FLStudioRPC
-          chmod +x release/FLStudioRPC-linux-x64/setup.sh
-          chmod +x release/FLStudioRPC-linux-x64/uninstall.sh
+          tar -czf "release/$ARCHIVE" -C release "FLStudioRPC-linux-x64"
 
-      - name: Create archive
+          echo "Created package:"
+          ls -lh "release/$ARCHIVE"
+
+      - name: Verify release package
         shell: bash
         run: |
-          cd release
+          PACKAGE="release/FLStudioRPC-linux-x64"
 
-          tar -czf \
-            "FLStudioRPC-linux-x64-${{ steps.new_version.outputs.new_version }}.tar.gz" \
-            FLStudioRPC-linux-x64
+          test -f "$PACKAGE/FLStudioRPC"
+          test -f "$PACKAGE/setup.sh"
+          test -f "$PACKAGE/uninstall.sh"
+          test -f "$PACKAGE/Icons/hicolor/128x128/apps/flstudio.png"
+
+          echo "Release package contents:"
+          find "$PACKAGE" -type f -print
 
       - name: Create release notes
         id: release_notes
         shell: bash
+        env:
+          CUSTOM_NOTES: ${{ github.event.inputs.release_notes }}
+          NEW_TAG: ${{ steps.new_version.outputs.new_tag }}
+          REPOSITORY: ${{ github.repository }}
         run: |
-          custom_notes="${{ github.event.inputs.release_notes }}"
-          new_tag="${{ steps.new_version.outputs.new_tag }}"
-          repo="${{ github.repository }}"
-
-          if [ -n "$custom_notes" ]; then
-            change_log="$custom_notes"
+          if [[ -n "$CUSTOM_NOTES" ]]; then
+            notes="$CUSTOM_NOTES"
           else
-            change_log="See the [commit history](https://github.com/$repo/commits/$new_tag) for detailed changes."
+            notes="See the [commit history](https://github.com/$REPOSITORY/commits/$NEW_TAG) for detailed changes."
           fi
 
           {
             echo "notes<<EOF"
-            echo "$change_log"
+            echo "$notes"
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
 
@@ -156,29 +166,28 @@ jobs:
           body: |
             ## FL Studio Discord RPC ${{ steps.new_version.outputs.new_tag }}
 
-            Linux release.
-
-            ### Download
-
-            Download:
-
-            `FLStudioRPC-linux-x64-${{ steps.new_version.outputs.new_version }}.tar.gz`
+            Linux x86-64 release.
 
             ### Installation
 
-            1. Extract the archive.
-            2. Open the `FLStudioRPC-linux-x64` directory.
-            3. Run `setup.sh`.
-            4. The installer will install the application and create the necessary desktop integration.
-            5. The application will start automatically in the system tray.
+            1. Download `FLStudioRPC-linux-x64-v${{ steps.new_version.outputs.new_version }}.tar.gz`
+            2. Extract the archive.
+            3. Enter the extracted `FLStudioRPC-linux-x64` directory.
+            4. Run:
+
+               ```bash
+               sudo ./setup.sh
+               ```
+
+            5. The application will be available from your application menu.
 
             ### Uninstallation
 
-            The downloaded package also contains:
+            Extract the same archive and run:
 
-            `uninstall.sh`
-
-            Run it to completely remove the installed application.
+            ```bash
+            sudo ./uninstall.sh
+            ```
 
             ### What's Changed
 
@@ -186,16 +195,14 @@ jobs:
 
             ---
 
-            Generated with GitHub Actions.
-          files: |
-            release/FLStudioRPC-linux-x64-${{ steps.new_version.outputs.new_version }}.tar.gz
+            Generated automatically with GitHub Actions.
+          files: release/FLStudioRPC-linux-x64-v${{ steps.new_version.outputs.new_version }}.tar.gz
           draft: false
           prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Release Summary
-        if: success()
         shell: bash
         run: |
           echo "Release created successfully!"
@@ -203,5 +210,4 @@ jobs:
           echo "Version: ${{ steps.new_version.outputs.new_tag }}"
           echo "Previous: ${{ steps.get_tag.outputs.current_tag }}"
           echo
-          echo "Archive:"
-          echo "FLStudioRPC-linux-x64-${{ steps.new_version.outputs.new_version }}.tar.gz"
+          echo "https://github.com/${{ github.repository }}/releases/tag/${{ steps.new_version.outputs.new_tag }}"
