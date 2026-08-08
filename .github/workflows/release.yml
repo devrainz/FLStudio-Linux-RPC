@@ -1,19 +1,19 @@
-name: Create Release
+name: Create Linux Release
 
 on:
   workflow_dispatch:
     inputs:
       version_bump:
-        description: 'Version bump type'
+        description: "Version bump type"
         required: true
-        default: 'patch'
+        default: "patch"
         type: choice
         options:
           - patch
           - minor
           - major
       release_notes:
-        description: 'Custom release notes (optional)'
+        description: "Custom release notes (optional)"
         required: false
         type: string
 
@@ -22,7 +22,7 @@ permissions:
 
 jobs:
   release:
-    runs-on: windows-latest
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
@@ -30,106 +30,165 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
       - name: Get latest tag
         id: get_tag
-        shell: pwsh
+        shell: bash
         run: |
-          $latestTag = git tag --sort=-v:refname | Select-Object -First 1
-          if (-not $latestTag) {
-            $latestTag = "v1.0.2"
-          }
-          Write-Output "Latest tag: $latestTag"
-          Add-Content -Path $env:GITHUB_OUTPUT -Value "current_tag=$latestTag"
+          latest_tag=$(git tag --sort=-v:refname | head -n 1)
+
+          if [ -z "$latest_tag" ]; then
+            latest_tag="v1.0.2"
+          fi
+
+          echo "Latest tag: $latest_tag"
+          echo "current_tag=$latest_tag" >> "$GITHUB_OUTPUT"
 
       - name: Calculate new version
         id: new_version
-        shell: pwsh
+        shell: bash
         run: |
-          $currentTag = "${{ steps.get_tag.outputs.current_tag }}"
-          $versionOnly = $currentTag -replace '^v', ''
-          $versionParts = $versionOnly.Split('.')
+          current_tag="${{ steps.get_tag.outputs.current_tag }}"
+          version_only="${current_tag#v}"
 
-          $major = [int]$versionParts[0]
-          $minor = [int]$versionParts[1]
-          $patch = [int]$versionParts[2]
+          IFS='.' read -r major minor patch <<< "$version_only"
 
-          switch ("${{ github.event.inputs.version_bump }}") {
-            "major" {
-              $major++
-              $minor = 0
-              $patch = 0
-            }
-            "minor" {
-              $minor++
-              $patch = 0
-            }
-            "patch" {
-              $patch++
-            }
-          }
+          case "${{ github.event.inputs.version_bump }}" in
+            major)
+              major=$((major + 1))
+              minor=0
+              patch=0
+              ;;
+            minor)
+              minor=$((minor + 1))
+              patch=0
+              ;;
+            patch)
+              patch=$((patch + 1))
+              ;;
+          esac
 
-          $newVersion = "v$major.$minor.$patch"
-          Write-Output "New version: $newVersion"
-          Add-Content -Path $env:GITHUB_OUTPUT -Value "new_tag=$newVersion"
-          Add-Content -Path $env:GITHUB_OUTPUT -Value "new_version=$major.$minor.$patch"
+          new_tag="v${major}.${minor}.${patch}"
+          new_version="${major}.${minor}.${patch}"
 
-      - name: Check if installer exists
-        id: check_installer
-        shell: pwsh
+          echo "New version: $new_tag"
+
+          echo "new_tag=$new_tag" >> "$GITHUB_OUTPUT"
+          echo "new_version=$new_version" >> "$GITHUB_OUTPUT"
+
+      - name: Restore dependencies
+        run: dotnet restore
+
+      - name: Build Linux x64 release
         run: |
-          $installerPath = "installer_output\FLStudioRPC_Setup.exe"
-          if (Test-Path $installerPath) {
-            Write-Output "Installer found at $installerPath"
-            Add-Content -Path $env:GITHUB_OUTPUT -Value "installer_exists=true"
-          } else {
-            Write-Output "ERROR: Installer not found at $installerPath"
-            Write-Output "Please compile the installer using Inno Setup before triggering this workflow"
-            exit 1
-          }
+          dotnet publish FLStudioRPC.csproj \
+            -c Release \
+            -r linux-x64 \
+            --self-contained true \
+            -p:PublishSingleFile=true \
+            -p:IncludeNativeLibrariesForSelfExtract=true \
+            -p:DebugType=None \
+            -p:DebugSymbols=false \
+            -o publish/linux-x64
+
+      - name: Prepare release package
+        shell: bash
+        run: |
+          set -e
+
+          rm -rf release
+          mkdir -p release/FLStudioRPC-linux-x64
+
+          cp publish/linux-x64/FLStudioRPC \
+             release/FLStudioRPC-linux-x64/
+
+          cp -r Icons \
+             release/FLStudioRPC-linux-x64/
+
+          cp installer/setup.sh \
+             release/FLStudioRPC-linux-x64/
+
+          cp installer/uninstall.sh \
+             release/FLStudioRPC-linux-x64/
+
+          chmod +x release/FLStudioRPC-linux-x64/FLStudioRPC
+          chmod +x release/FLStudioRPC-linux-x64/setup.sh
+          chmod +x release/FLStudioRPC-linux-x64/uninstall.sh
+
+      - name: Create archive
+        shell: bash
+        run: |
+          cd release
+
+          tar -czf \
+            "FLStudioRPC-linux-x64-${{ steps.new_version.outputs.new_version }}.tar.gz" \
+            FLStudioRPC-linux-x64
 
       - name: Create release notes
         id: release_notes
-        shell: pwsh
+        shell: bash
         run: |
-          $customNotes = "${{ github.event.inputs.release_notes }}"
-          $newTag = "${{ steps.new_version.outputs.new_tag }}"
-          $repo = "${{ github.repository }}"
+          custom_notes="${{ github.event.inputs.release_notes }}"
+          new_tag="${{ steps.new_version.outputs.new_tag }}"
+          repo="${{ github.repository }}"
 
-          if ($customNotes) {
-            $changeLog = $customNotes
-          } else {
-            $changeLog = "See the [commit history](https://github.com/$repo/commits/$newTag) for detailed changes."
-          }
+          if [ -n "$custom_notes" ]; then
+            change_log="$custom_notes"
+          else
+            change_log="See the [commit history](https://github.com/$repo/commits/$new_tag) for detailed changes."
+          fi
 
-          $delimiter = "RELEASE_NOTES_EOF_$(Get-Random)"
-          Add-Content -Path $env:GITHUB_OUTPUT -Value "notes<<$delimiter"
-          Add-Content -Path $env:GITHUB_OUTPUT -Value $changeLog
-          Add-Content -Path $env:GITHUB_OUTPUT -Value $delimiter
+          {
+            echo "notes<<EOF"
+            echo "$change_log"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
 
-      - name: Create Release
-        uses: softprops/action-gh-release@v1
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.new_version.outputs.new_tag }}
-          name: Release ${{ steps.new_version.outputs.new_tag }}
+          name: FL Studio Discord RPC ${{ steps.new_version.outputs.new_tag }}
           body: |
             ## FL Studio Discord RPC ${{ steps.new_version.outputs.new_tag }}
 
+            Linux release.
+
             ### Download
-            Download `FLStudioRPC_Setup.exe` below to install or update.
+
+            Download:
+
+            `FLStudioRPC-linux-x64-${{ steps.new_version.outputs.new_version }}.tar.gz`
 
             ### Installation
-            1. Download the installer
-            2. Run `FLStudioRPC_Setup.exe`
-            3. Follow the installation wizard
-            4. The app will start automatically in your system tray
+
+            1. Extract the archive.
+            2. Open the `FLStudioRPC-linux-x64` directory.
+            3. Run `setup.sh`.
+            4. The installer will install the application and create the necessary desktop integration.
+            5. The application will start automatically in the system tray.
+
+            ### Uninstallation
+
+            The downloaded package also contains:
+
+            `uninstall.sh`
+
+            Run it to completely remove the installed application.
 
             ### What's Changed
+
             ${{ steps.release_notes.outputs.notes }}
 
             ---
 
-            Generated with GitHub Actions
-          files: installer_output/FLStudioRPC_Setup.exe
+            Generated with GitHub Actions.
+          files: |
+            release/FLStudioRPC-linux-x64-${{ steps.new_version.outputs.new_version }}.tar.gz
           draft: false
           prerelease: false
         env:
@@ -137,11 +196,12 @@ jobs:
 
       - name: Release Summary
         if: success()
-        shell: pwsh
+        shell: bash
         run: |
-          Write-Output "Release created successfully!"
-          Write-Output ""
-          Write-Output "Version: ${{ steps.new_version.outputs.new_tag }}"
-          Write-Output "Previous: ${{ steps.get_tag.outputs.current_tag }}"
-          Write-Output ""
-          Write-Output "View the release at: https://github.com/${{ github.repository }}/releases/tag/${{ steps.new_version.outputs.new_tag }}"
+          echo "Release created successfully!"
+          echo
+          echo "Version: ${{ steps.new_version.outputs.new_tag }}"
+          echo "Previous: ${{ steps.get_tag.outputs.current_tag }}"
+          echo
+          echo "Archive:"
+          echo "FLStudioRPC-linux-x64-${{ steps.new_version.outputs.new_version }}.tar.gz"
