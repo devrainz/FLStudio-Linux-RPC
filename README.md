@@ -6,7 +6,7 @@
   <br>
 </h1>
 
-<h4 align="center">A Linux port of FL Studio Discord RPC for showing your FL Studio projects and activity on Discord. </h4>
+<h4 align="center">A Linux port of FL Studio Discord RPC for showing your FL Studio projects and activity on Discord.</h4>
 
 <p align="center">
   <img alt="Platform" src="https://img.shields.io/badge/platform-Linux-success">
@@ -26,8 +26,9 @@
   <a href="#building-from-source">Building From Source</a> •
   <a href="#uninstallation">Uninstallation</a> •
   <a href="#packages-used">Packages Used</a> •
-  <a href="#license">License</a> •
-  <a href="#feedback">Feedback</a>
+  <a href="#feedback">Feedback</a> •
+  <a href="#about-this-fork">About This Fork</a> •
+  <a href="#license">License</a>
 </p>
 
 <p align="center">
@@ -55,7 +56,7 @@
 Currently supported:
 
 * **Linux x86-64**
-* **FL Studio running through Wine, Proton, etc**
+* **FL Studio running through Wine, Proton, etc.**
 * **Discord**
 
 The application is currently distributed as a Linux x86-64 build.
@@ -284,6 +285,34 @@ FLStudio-Linux-RPC/
 If you encounter a bug, have a feature request, or have an issue with FL Studio running through Wine or Proton, please open an issue on the [GitHub repository](https://github.com/devrainz/FLStudio-Linux-RPC/issues).
 
 Feedback and contributions are welcome.
+
+## About This Fork
+
+**FL Studio Discord RPC for Linux** is a Linux-focused fork and substantial port of the original [FL Studio Discord RPC](https://github.com/zfi2/FL-Studio-Discord-RPC) by [@zfi2](https://github.com/zfi2).
+
+The original project provided the foundation for this Linux version, and portions of its original code and overall functionality were retained where appropriate. However, the original application was heavily dependent on **Windows-specific APIs and technologies**, making a direct Linux port impractical.
+
+Because of this, a significant portion of the application had to be **rewritten and replaced with Linux-native implementations**. Windows-specific functionality was removed and replaced with Linux-compatible approaches for things such as:
+
+* FL Studio process and Wine/Proton detection
+* System tray integration
+* Application and desktop integration
+* Configuration and application behavior
+* Single-instance handling
+* Linux application icons and desktop entries
+* Installation and uninstallation
+* Other functionality that previously depended on Windows APIs
+
+The goal of this project is therefore not simply to run the original Windows application on Linux, but to provide a **proper Linux-native implementation** while preserving the core idea and functionality of the original project.
+
+### Credits
+
+Huge thanks to **[@zfi2](https://github.com/zfi2)** for creating the original FL Studio Discord RPC and providing the foundation that made this project possible.
+
+**Original project:**
+https://github.com/zfi2/FL-Studio-Discord-RPC
+
+This project is independently maintained and focused exclusively on Linux.
 
 ## License
 
