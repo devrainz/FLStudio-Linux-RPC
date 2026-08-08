@@ -1,26 +1,25 @@
 ﻿using System;
 using System.IO;
 using System.Diagnostics;
-using System.Runtime.InteropServices;
-using System.Text;
 using System.Collections.Generic;
+using System.Text.RegularExpressions;
+using System.Linq;
 
-using System.Drawing;
 using Console = Colorful.Console;
 
-// ClientID and settings
 using static ConfigValues;
 
 public static class Logger
 {
     private static readonly string LogDir = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+        Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+        ".config",
         "FLStudioRPC",
         "logs"
     );
 
     private static readonly string LogFilePath = Path.Combine(LogDir, "flrpc.log");
-    private const long MaxLogSize = 512 * 1024; // 512 KB
+    private const long MaxLogSize = 512 * 1024;
 
     private static readonly object _lock = new object();
 
@@ -32,7 +31,6 @@ public static class Logger
             {
                 Directory.CreateDirectory(LogDir);
 
-                // Rotate if too large
                 if (File.Exists(LogFilePath))
                 {
                     var fileInfo = new FileInfo(LogFilePath);
@@ -52,7 +50,6 @@ public static class Logger
         }
         catch
         {
-            // Last resort - don't crash over logging
         }
     }
 
@@ -69,154 +66,132 @@ public static class Logger
 
 public static class Utils
 {
-    // Win32 imports for enumerating windows
-    private delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
-
-    [DllImport("user32.dll")]
-    private static extern bool EnumWindows(EnumWindowsProc lpEnumFunc, IntPtr lParam);
-
-    [DllImport("user32.dll", CharSet = CharSet.Auto, SetLastError = true)]
-    private static extern int GetWindowText(IntPtr hWnd, StringBuilder lpString, int nMaxCount);
-
-    [DllImport("user32.dll")]
-    private static extern int GetWindowTextLength(IntPtr hWnd);
-
-    [DllImport("user32.dll")]
-    private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
-
-    [DllImport("user32.dll")]
-    private static extern bool IsWindowVisible(IntPtr hWnd);
-
-    // State tracking for change-only logging
     private static string _lastWindowTitle = null;
-    private static bool _lastProcessFound = false;
-    private static bool _lastNoWindowWarned = false;
 
     public static string GetMainWindowsTitleByProcessNames(params string[] processNames)
     {
-        // Collect all process IDs for the target process names
-        var targetPids = new HashSet<uint>();
-        foreach (var processName in processNames)
+        try
         {
-            try
+            ProcessStartInfo psi = new ProcessStartInfo
             {
-                Process[] processes = Process.GetProcessesByName(processName);
-                foreach (var proc in processes)
+                FileName = "/bin/bash",
+                Arguments = "-c \"xwininfo -root -tree\"",
+                RedirectStandardOutput = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+
+            using Process process = Process.Start(psi);
+
+            string output = process.StandardOutput.ReadToEnd();
+            process.WaitForExit();
+
+
+            foreach (string line in output.Split('\n'))
+            {
+                if (!line.Contains("\""))
+                    continue;
+
+
+                string trimmed = line.Trim();
+
+                if (!trimmed.StartsWith("0x"))
+                    continue;
+
+
+                int firstQuote = line.IndexOf('"');
+
+                if (firstQuote == -1)
+                    continue;
+
+
+                int secondQuote = line.IndexOf('"', firstQuote + 1);
+
+                if (secondQuote == -1)
+                    continue;
+
+
+                string title = line.Substring(
+                    firstQuote + 1,
+                    secondQuote - firstQuote - 1
+                );
+
+                if (title.Contains(
+                        "Visual Studio Code",
+                        StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+
+                if (title.Contains(
+                        "FLHintBarForm",
+                        StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+
+                if (title.Contains(
+                        "FL Studio",
+                        StringComparison.OrdinalIgnoreCase))
                 {
-                    targetPids.Add((uint)proc.Id);
+                    if (title != _lastWindowTitle)
+                    {
+                        Logger.Info(
+                            $"Window title changed: '{_lastWindowTitle}' -> '{title}'"
+                        );
+
+                        _lastWindowTitle = title;
+                    }
+
+                    return title;
+                }
+
+                if (
+                    title.Contains(
+                        "Settings",
+                        StringComparison.OrdinalIgnoreCase)
+                    ||
+                    title.Contains(
+                        "credits",
+                        StringComparison.OrdinalIgnoreCase)
+                )
+                {
+                    if (title != _lastWindowTitle)
+                    {
+                        Logger.Info(
+                            $"Window title changed: '{_lastWindowTitle}' -> '{title}'"
+                        );
+
+                        _lastWindowTitle = title;
+                    }
+
+                    return title;
                 }
             }
-            catch (Exception ex)
-            {
-                Logger.Error($"Error enumerating processes for '{processName}'", ex);
-            }
+        }
+        catch (Exception ex)
+        {
+            Logger.Error(
+                "Linux window detection failed",
+                ex
+            );
         }
 
-        if (targetPids.Count == 0)
-        {
-            if (_lastProcessFound)
-            {
-                Logger.Info("FL processes no longer found");
-                _lastProcessFound = false;
-                _lastNoWindowWarned = false;
-            }
-            return null;
-        }
-
-        if (!_lastProcessFound)
-        {
-            Logger.Info($"FL process detected ({targetPids.Count} PID(s))");
-            _lastProcessFound = true;
-        }
-
-        // Use EnumWindows to find a visible window belonging to one of these processes
-        string foundTitle = null;
-
-        EnumWindows((hWnd, lParam) =>
-        {
-            if (!IsWindowVisible(hWnd))
-                return true; // continue
-
-            GetWindowThreadProcessId(hWnd, out uint windowPid);
-
-            if (!targetPids.Contains(windowPid))
-                return true; // continue
-
-            int length = GetWindowTextLength(hWnd);
-            if (length == 0)
-                return true; // continue
-
-            var sb = new StringBuilder(length + 1);
-            GetWindowText(hWnd, sb, sb.Capacity);
-            string title = sb.ToString();
-
-            if (!string.IsNullOrEmpty(title))
-            {
-                foundTitle = title;
-                return false; // stop enumerating
-            }
-
-            return true; // continue
-        }, IntPtr.Zero);
-
-        if (foundTitle == null)
-        {
-            if (!_lastNoWindowWarned)
-            {
-                Logger.Warn($"FL processes found ({targetPids.Count} PID(s)) but no visible window with a title");
-                _lastNoWindowWarned = true;
-            }
-        }
-        else
-        {
-            _lastNoWindowWarned = false;
-
-            if (foundTitle != _lastWindowTitle)
-            {
-                Logger.Info($"Window title changed: '{_lastWindowTitle}' -> '{foundTitle}'");
-                _lastWindowTitle = foundTitle;
-            }
-        }
-
-        return foundTitle;
-    }
-
-    public static Version GetApplicationVersion(string processName)
-    {
-        Process[] processes = Process.GetProcessesByName(processName);
-
-        if (processes.Length > 0)
-        {
-            try
-            {
-                string filePath = processes[0].MainModule.FileName;
-
-                if (!string.IsNullOrEmpty(filePath) && File.Exists(filePath))
-                {
-                    FileVersionInfo versionInfo = FileVersionInfo.GetVersionInfo(filePath);
-                    return new Version(versionInfo.FileVersion);
-                }
-                else
-                {
-                    Logger.Warn($"GetApplicationVersion('{processName}'): filePath empty or missing ('{filePath}')");
-                }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Error retrieving version information: {ex.Message}", Color.Red);
-                Logger.Error($"GetApplicationVersion failed for '{processName}'", ex);
-                return null;
-            }
-        }
 
         return null;
     }
+
+
+    public static Version GetApplicationVersion(string processName)
+    {
+        return null;
+    }
+
 
     public static FLInfo GetFLInfo()
     {
         FLInfo Info = new FLInfo();
 
-        string fullTitle = GetMainWindowsTitleByProcessNames("FL", "FL64");
+        string fullTitle = GetMainWindowsTitleByProcessNames("FL");
+
 
         if (string.IsNullOrEmpty(fullTitle))
         {
@@ -227,20 +202,37 @@ public static class Utils
         {
             if (AccurateVersion)
             {
-                Version accurateVersion = GetApplicationVersion("FL64") ?? GetApplicationVersion("FL");
-                Info.AppName = accurateVersion != null ? $"FL Studio {accurateVersion}" : null;
+                Version accurateVersion =
+                    GetApplicationVersion("FL64")
+                    ?? GetApplicationVersion("FL");
+
+                Info.AppName =
+                    accurateVersion != null
+                    ? $"FL Studio {accurateVersion}"
+                    : null;
             }
             else
             {
-                int hyphenIndex = fullTitle.IndexOf('-');
+                int hyphenIndex = fullTitle.LastIndexOf(" - ");
 
-                Info.ProjectName = hyphenIndex == -1 ? null : fullTitle.Substring(0, hyphenIndex).Trim();
-                Info.AppName = hyphenIndex == -1 ? fullTitle.Trim() : fullTitle.Substring(hyphenIndex + 1).Trim();
+
+                Info.ProjectName =
+                    hyphenIndex == -1
+                    ? null
+                    : fullTitle.Substring(0, hyphenIndex).Trim();
+
+
+                Info.AppName =
+                    hyphenIndex == -1
+                    ? fullTitle.Trim()
+                    : fullTitle.Substring(hyphenIndex + 3).Trim();
             }
         }
 
+
         return Info;
     }
+
 
     public struct FLInfo
     {

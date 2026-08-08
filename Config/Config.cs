@@ -36,8 +36,6 @@ public static class ConfigSettings
     {
         try
         {
-            // Convert the value to the appropriate type
-            // Side note: most of those are not needed, but implemented anyways just in case
             if (targetType == typeof(bool))
             {
                 return Convert.ToBoolean(value);
@@ -64,7 +62,6 @@ public static class ConfigSettings
             }
             else
             {
-                // Assume it's convertible for other types
                 return value;
             }
         }
@@ -80,7 +77,6 @@ public static class ConfigSettings
     {
         try
         {
-            // Get properties with default values and their attributes
             var configProperties = typeof(ConfigValues)
                 .GetProperties()
                 .Where(prop => Attribute.IsDefined(prop, typeof(DefaultValueAttribute)));
@@ -89,15 +85,11 @@ public static class ConfigSettings
             {
                 if (properties.TryGetValue(prop.Name, out var value))
                 {
-                    // Convert the value to the appropriate type
                     object convertedValue = ConvertValue(value, prop.PropertyType);
-
-                    // Set the value to the ConfigValues property
                     prop.SetValue(null, convertedValue);
                 }
                 else
                 {
-                    // Handle missing properties in the loaded configuration
                     Console.WriteLine($"Property {prop.Name} not found in the loaded configuration.", Color.Red);
                 }
             }
@@ -114,26 +106,21 @@ public static class ConfigSettings
     {
         try
         {
-            // Ensure directory exists
             string directory = Path.GetDirectoryName(filePath);
             if (!string.IsNullOrEmpty(directory))
             {
                 Directory.CreateDirectory(directory);
             }
-
-            // Get current values from ConfigValues properties
             var properties = typeof(ConfigValues)
                 .GetProperties()
                 .Where(prop => Attribute.IsDefined(prop, typeof(DefaultValueAttribute)))
                 .ToDictionary(
                     prop => prop.Name,
-                    prop => prop.GetValue(null) // Get current value, not default
+                    prop => prop.GetValue(null)
                 );
 
-            // Serialize the current properties to JSON
             string json = JsonConvert.SerializeObject(properties, Formatting.Indented);
 
-            // Write to file
             File.WriteAllText(filePath, json);
         }
         catch (Exception ex)
@@ -147,14 +134,11 @@ public static class ConfigSettings
     {
         try
         {
-            // Ensure directory exists
             string directory = Path.GetDirectoryName(filePath);
             if (!string.IsNullOrEmpty(directory))
             {
                 Directory.CreateDirectory(directory);
             }
-
-            // Get properties with default values and their attributes
             var properties = typeof(ConfigValues)
                 .GetProperties()
                 .Where(prop => Attribute.IsDefined(prop, typeof(DefaultValueAttribute)))
@@ -164,34 +148,24 @@ public static class ConfigSettings
                     {
                         var defaultValueAttribute = (DefaultValueAttribute)Attribute.GetCustomAttribute(prop, typeof(DefaultValueAttribute));
 
-                    // Handle different types
                     return ConvertValue(defaultValueAttribute.Value, prop.PropertyType);
                     });
 
-            // Serialize the properties to JSON
             string json = JsonConvert.SerializeObject(properties, Formatting.Indented);
 
-            // If the config file doesn't exist, create one with default values
             if (!File.Exists(filePath))
             {
                 Console.WriteLine("Configuration file not found. Creating one with default values.\n", Color.LightSkyBlue);
-
-                // Save JSON to file
                 File.WriteAllText(filePath, json);
             }
             else
             {
-                // Config file does exist
                 Console.WriteLine("Configuration file present, loading values...\n", Color.LimeGreen);
             }
-
-            // Load the configuration even if the config file doesn't exist,
-            // because it already has been created and exists now (I love coding!)
             LoadConfig(filePath);
         }
         catch (Exception ex)
         {
-            // Handle exceptions (e.g., file I/O, JSON serialization, conversion)
             Console.WriteLine($"Error saving configuration: {ex.Message}", Color.Red);
             Logger.Error("SaveConfig failed", ex);
         }
@@ -201,18 +175,14 @@ public static class ConfigSettings
     {
         try
         {
-            // Read JSON from file
             string json = File.ReadAllText(filePath);
 
-            // Deserialize JSON to dictionary
             var properties = JsonConvert.DeserializeObject<Dictionary<string, object>>(json);
 
-            // Set values to ConfigValues
             SetValues(properties);
         }
         catch (Exception ex)
         {
-            // Handle exceptions (e.g., file not found, invalid JSON format)
             Console.WriteLine($"Error loading configuration: {ex.Message}", Color.Red);
             Logger.Error("LoadConfig failed", ex);
         }

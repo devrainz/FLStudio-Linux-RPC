@@ -1,6 +1,5 @@
 ﻿using DiscordRPC.Message;
 
-// Events
 using static Program;
 
 using System.Drawing;
@@ -8,14 +7,12 @@ using Console = Colorful.Console;
 
 public static class Events
 {
-    // Clear the presence and dispose if client lost connection, etc
     public static void Deinitialize()
     {
         _Client.ClearPresence();
         _Client.Dispose();
     }
 
-    // Various messages for various events
     public static void OnReady(object sender, ReadyMessage e)
     {
         Console.WriteLine($"Received Ready from user => {e.User.Username}", Color.LimeGreen);
