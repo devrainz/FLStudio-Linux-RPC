@@ -6,7 +6,7 @@
   <br>
 </h1>
 
-<h4 align="center">A Linux port of FL Studio Discord RPC for showing your FL Studio projects and activity on Discord.</h4>
+<h4 align="center">A Linux port of FL Studio Discord RPC for showing your FL Studio projects and activity on Discord. </h4>
 
 <p align="center">
   <img alt="Platform" src="https://img.shields.io/badge/platform-Linux-success">
