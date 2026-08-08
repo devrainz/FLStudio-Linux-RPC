@@ -1,6 +1,6 @@
 <h1 align="center">
   <br>
-  <a href="https://github.com/devrainz/FLStudio-Linux-RPC"><img src="https://raw.githubusercontent.com/devrainz/FLStudio-Linux-RPC/linux-port/Icons/hicolor/128x128/apps/flstudio.png" alt="FL Studio Discord RPC" width="200"></a>
+  <a href="https://github.com/devrainz/FLStudio-Linux-RPC"><img src="https://raw.githubusercontent.com/devrainz/FLStudio-Linux-RPC/Icons/hicolor/128x128/apps/flstudio.png" alt="FL Studio Discord RPC" width="200"></a>
   <br>
   FL Studio Discord RPC
   <br>
@@ -31,7 +31,7 @@
 </p>
 
 <p align="center">
-  <img src="https://i.imgur.com/viJFFoI.png" alt="FL Studio Discord RPC">
+  <img src="https://raw.githubusercontent.com/devrainz/FLStudio-Linux-RPC/assets/preview.png" alt="RPC Preview">
 </p>
 
 ## Key Features
@@ -55,7 +55,7 @@
 Currently supported:
 
 * **Linux x86-64**
-* **FL Studio running through Wine or Proton**
+* **FL Studio running through Wine, Proton, etc**
 * **Discord**
 
 The application is currently distributed as a Linux x86-64 build.
