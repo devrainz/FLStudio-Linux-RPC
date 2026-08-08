@@ -396,3 +396,11 @@ FodyWeavers.xsd
 
 # JetBrains Rider
 *.sln.iml
+
+# Linux installer/build output
+installer_output/
+
+# Local installer artifacts
+*.tar.gz
+*.tar.xz
+*.zip
