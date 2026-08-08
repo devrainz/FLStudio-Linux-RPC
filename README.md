@@ -2,7 +2,7 @@
   <br>
   <a href="https://github.com/devrainz/FLStudio-Linux-RPC"><img src="https://raw.githubusercontent.com/devrainz/FLStudio-Linux-RPC/refs/heads/main/Icons/hicolor/128x128/apps/flstudio.png" alt="FL Studio Discord RPC" width="200"></a>
   <br>
-  FL Studio Discord RPC
+  FL Studio Linux RPC
   <br>
 </h1>
 
