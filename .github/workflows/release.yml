@@ -120,7 +120,9 @@ jobs:
             "$PACKAGE_DIR/setup.sh" \
             "$PACKAGE_DIR/uninstall.sh"
 
-          tar -czf "release/$ARCHIVE" -C release "FLStudioRPC-linux-x64"
+          tar -czf "release/$ARCHIVE" \
+            -C release \
+            "FLStudioRPC-linux-x64"
 
           echo "Created package:"
           ls -lh "release/$ARCHIVE"
