@@ -1,6 +1,6 @@
 <h1 align="center">
   <br>
-  <a href="https://github.com/devrainz/FLStudio-Linux-RPC"><img src="https://raw.githubusercontent.com/devrainz/FLStudio-Linux-RPC/Icons/hicolor/128x128/apps/flstudio.png" alt="FL Studio Discord RPC" width="200"></a>
+  <a href="https://github.com/devrainz/FLStudio-Linux-RPC"><img src="https://raw.githubusercontent.com/devrainz/FLStudio-Linux-RPC/refs/heads/main/Icons/hicolor/128x128/apps/flstudio.png" alt="FL Studio Discord RPC" width="200"></a>
   <br>
   FL Studio Discord RPC
   <br>
@@ -31,7 +31,7 @@
 </p>
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/devrainz/FLStudio-Linux-RPC/assets/preview.png" alt="RPC Preview">
+  <img src="https://raw.githubusercontent.com/devrainz/FLStudio-Linux-RPC/refs/heads/main/assets/preview.png" alt="RPC Preview">
 </p>
 
 ## Key Features
