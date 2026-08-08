@@ -1,108 +1,294 @@
 <h1 align="center">
   <br>
-  <a href="https://github.com/zfi2/FL-Studio-Discord-RPC"><img src="https://raw.githubusercontent.com/zfi2/FL-Studio-Discord-RPC/refs/heads/main/FLStudioRPC.ico" alt="FL Studio Discord RPC" width="200"></a>
+  <a href="https://github.com/devrainz/FLStudio-Linux-RPC"><img src="https://raw.githubusercontent.com/devrainz/FLStudio-Linux-RPC/linux-port/Icons/hicolor/128x128/apps/flstudio.png" alt="FL Studio Discord RPC" width="200"></a>
   <br>
   FL Studio Discord RPC
   <br>
 </h1>
 
-<h4 align="center">A simple, yet cool way to show off your FL Studio projects to your friends and others.</h4>
+<h4 align="center">A Linux port of FL Studio Discord RPC for showing your FL Studio projects and activity on Discord.</h4>
+
+<p align="center">
+  <img alt="Platform" src="https://img.shields.io/badge/platform-Linux-success">
+  <img alt="Architecture" src="https://img.shields.io/badge/architecture-x86--64-blue">
+  <img alt=".NET" src="https://img.shields.io/badge/.NET-8.0-512BD4">
+  <img alt="Runtime" src="https://img.shields.io/badge/runtime-self--contained-brightgreen">
+  <img alt="Status" src="https://img.shields.io/badge/status-v1.0.0-brightgreen">
+  <img alt="License" src="https://img.shields.io/badge/license-MIT-green">
+</p>
 
 <p align="center">
   <a href="#key-features">Key Features</a> •
-  <a href="#how-to-use">How To Use</a> •
-  <a href="#download">Download</a> •
+  <a href="#requirements">Requirements</a> •
+  <a href="#installation">Installation</a> •
+  <a href="#usage">Usage</a> •
+  <a href="#configuration">Configuration</a> •
   <a href="#building-from-source">Building From Source</a> •
+  <a href="#uninstallation">Uninstallation</a> •
   <a href="#packages-used">Packages Used</a> •
   <a href="#license">License</a> •
   <a href="#feedback">Feedback</a>
 </p>
 
-<p align="center"><img src="https://i.imgur.com/viJFFoI.png"></p>
+<p align="center">
+  <img src="https://i.imgur.com/viJFFoI.png" alt="FL Studio Discord RPC">
+</p>
 
 ## Key Features
 
-* **System Tray Integration** - Runs invisibly in the background
-* **Auto-Startup** - Optionally launches with Windows (configurable via tray menu)
-* **Secret Mode** - Hide your project names from others
-* **Conditional RPC** - Only shows Discord activity when FL Studio is actually running
-* **Single Instance** - Prevents multiple copies from running simultaneously
-* **Accurate Version Display** - Show exact FL Studio version (e.g., FL Studio 20.8.4.1873)
-* **JSON Configuration** - Easy-to-manage settings
-* **Lightweight & Efficient** - Minimal resource usage
+* **Linux Native** - Designed specifically for Linux instead of relying on Windows APIs.
+* **Wine/Proton FL Studio Detection** - Detects FL Studio running through Wine or Proton.
+* **Discord Rich Presence** - Displays your current FL Studio activity on Discord.
+* **System Tray Integration** - Runs quietly in the background with a tray icon.
+* **Secret Mode** - Hide your FL Studio project name from your Discord activity.
+* **Conditional RPC** - Discord activity is only displayed while FL Studio is running.
+* **Single Instance** - Prevents multiple copies of FL Studio Discord RPC from running simultaneously.
+* **Accurate FL Studio Version Detection** - Displays the detected FL Studio version when available.
+* **JSON Configuration** - Settings are stored in an easy-to-manage configuration file.
+* **Lightweight** - Runs in the background with minimal resource usage.
+* **Self-Contained Releases** - Official releases include everything required to run the application without installing the .NET runtime separately.
 
-## How To Use
+## Requirements
 
-### Installation
+### Supported Systems
 
-1. Download `FLStudioRPC_Setup.exe` from the [Releases](https://github.com/zfi2/FL-Studio-Discord-RPC/releases) page
-2. Run the installer
-3. Choose your installation location (optional)
-4. Select your preferences:
-   - Open FL Studio Discord RPC on startup (recommended)
-   - Create a desktop icon (optional)
-5. Click Install
+Currently supported:
 
-The app will automatically start and run in your system tray.
+* **Linux x86-64**
+* **FL Studio running through Wine or Proton**
+* **Discord**
 
-### Usage
+The application is currently distributed as a Linux x86-64 build.
 
-Once installed, FL Studio Discord RPC runs automatically in the background:
+### Runtime
 
-1. **System Tray Icon** - Look for the icon in your system tray (bottom-right, near the clock)
-2. **Right-click the icon** to access:
-   - Secret Mode (Hide Project Name) - Toggle project name visibility
-   - Start with Windows - Toggle auto-startup
-   - About - Opens the GitHub repository
-   - Exit - Closes the application
+Official releases are published as **self-contained .NET 8 applications**, so installing the .NET runtime separately is not required.
 
-The app will automatically detect when FL Studio is running and update your Discord status accordingly.
+For building from source, you will need:
+
+* .NET 8 SDK
+* A Linux x86-64 system
+* Git
+
+## Installation
+
+### From a Release
+
+Download the latest Linux release from the [Releases](https://github.com/devrainz/FLStudio-Linux-RPC/releases) page.
+
+Download the archive:
+
+```text
+FLStudioRPC-linux-x64-vX.X.X.tar.gz
+```
+
+Extract it:
+
+```bash
+tar -xzf FLStudioRPC-linux-x64-vX.X.X.tar.gz
+cd FLStudioRPC-linux-x64
+```
+
+Run the installer:
+
+```bash
+sudo ./setup.sh
+```
+
+The installer will:
+
+1. Install the application to `/opt/flstudio-rpc`
+2. Install the application icon
+3. Create a desktop entry
+4. Update the desktop application database when available
+
+After installation, **FL Studio Discord RPC** will appear in your desktop environment's application menu.
+
+You can launch it from there, or run:
+
+```bash
+/opt/flstudio-rpc/FLStudioRPC
+```
+
+## Usage
+
+Once started, FL Studio Discord RPC runs in the background and monitors your system for FL Studio.
+
+When FL Studio is detected, the application updates your Discord Rich Presence with information about the current FL Studio session.
+
+When FL Studio is closed, the Discord activity is cleared automatically.
+
+### System Tray
+
+The application provides a system tray icon when supported by your desktop environment.
+
+Right-click the tray icon to access the available options, including:
+
+* **Secret Mode** - Hide your current project name
+* **About** - Open information about the application
+* **Exit** - Close FL Studio Discord RPC
+
+## Configuration
+
+Configuration is stored as JSON and can be customized without modifying the application itself.
+
+The configuration controls application behavior such as Discord Rich Presence settings and privacy options.
 
 > **Note**
-> When FL Studio is closed, your Discord activity will be cleared automatically.
+> The exact configuration location and available options may change as the Linux port develops. Check the current configuration implementation in `Config/Config.cs` if you are building from source.
 
-## Download
+## Uninstallation
 
-You can [download](https://github.com/zfi2/FL-Studio-Discord-RPC/releases) the latest installer for Windows.
+If you installed the application using `setup.sh`, use the included uninstaller.
 
-**System Requirements:**
-- Windows 10/11
-- .NET Framework 4.8.1 (usually pre-installed)
-- Discord running on your PC
+From the extracted release directory:
+
+```bash
+sudo ./uninstall.sh
+```
+
+The uninstaller removes:
+
+* `/opt/flstudio-rpc`
+* `/usr/share/applications/flstudiorpc.desktop`
+* Installed application resources and icons
+
+The desktop application database is also updated when the required utility is available.
 
 ## Building From Source
 
-This project uses .NET Framework 4.8.1 and can be built with Visual Studio 2022 or MSBuild.
+This project uses **.NET 8** and the modern SDK-style project format.
 
-**Prerequisites:**
-- Visual Studio 2022 (Community Edition or higher) OR Visual Studio Build Tools
-- .NET Framework 4.8.1 SDK
+### Prerequisites
 
-**Steps:**
-1. Clone the repository
-2. Open `FLStudioRPC.sln` in Visual Studio
-3. Build the solution (Ctrl+Shift+B)
-4. The executable will be in `bin\Release\FLStudioRPC.exe`
+Install the .NET 8 SDK for your Linux distribution.
 
-**Creating the Installer:**
-1. Install [Inno Setup](https://jrsoftware.org/isdl.php)
-2. Right-click `installer.iss` and select "Compile"
-3. The installer will be created in `installer_output\FLStudioRPC_Setup.exe`
+Then clone the repository:
 
-## Feedback
+```bash
+git clone https://github.com/devrainz/FLStudio-Linux-RPC.git
+cd FLStudio-Linux-RPC
+```
 
-If you have any feedback, reach out to me on discord (which is available on [my website](https://lain.ovh/))
+Restore the project dependencies:
+
+```bash
+dotnet restore
+```
+
+Build the project:
+
+```bash
+dotnet build
+```
+
+Run it:
+
+```bash
+dotnet run
+```
+
+### Publishing a Linux x86-64 Build
+
+To create a self-contained Linux x86-64 build similar to the official releases:
+
+```bash
+dotnet publish FLStudioRPC.csproj \
+  --configuration Release \
+  --runtime linux-x64 \
+  --self-contained true \
+  --output publish/linux-x64 \
+  /p:PublishSingleFile=true \
+  /p:IncludeNativeLibrariesForSelfExtract=true
+```
+
+The resulting executable will be:
+
+```text
+publish/linux-x64/FLStudioRPC
+```
+
+### Creating a Release Package
+
+Official releases contain:
+
+```text
+FLStudioRPC-linux-x64/
+├── FLStudioRPC
+├── setup.sh
+├── uninstall.sh
+└── Icons/
+    └── hicolor/
+        ├── 128x128/
+        │   └── apps/
+        │       └── flstudio.png
+        └── index.theme
+```
+
+The GitHub Actions release workflow automatically builds and packages the application.
+
+Releases can be created through:
+
+**GitHub → Actions → Create Linux Release → Run workflow**
+
+The workflow supports:
+
+* Patch releases
+* Minor releases
+* Major releases
+* Custom release notes
+
+It automatically creates a versioned `.tar.gz` archive and publishes it as a GitHub Release.
+
+## Project Structure
+
+```text
+FLStudio-Linux-RPC/
+├── Config/
+│   └── Config.cs
+├── Events/
+│   └── Events.cs
+├── Icons/
+│   └── hicolor/
+├── Memory/
+│   └── Utils.cs
+├── Tray/
+│   └── LinuxTray.cs
+├── installer/
+│   ├── setup.sh
+│   └── uninstall.sh
+├── .github/
+│   └── workflows/
+│       └── release.yml
+├── FLStudioRPC.csproj
+├── Program.cs
+└── README.md
+```
 
 ## Packages Used
 
-[DiscordRichPresence](https://github.com/Lachee/discord-rpc-csharp) - Discord Rich Presence library
-[Newtonsoft.Json](https://github.com/JamesNK/Newtonsoft.Json) - JSON serialization
-[Colorful.Console](https://github.com/tomakita/Colorful.Console) - Console output formatting
+[DiscordRichPresence](https://github.com/Lachee/discord-rpc-csharp) - Discord Rich Presence library.
+
+[Newtonsoft.Json](https://github.com/JamesNK/Newtonsoft.Json) - JSON serialization and configuration handling.
+
+[Colorful.Console](https://github.com/tomakita/Colorful.Console) - Console output formatting.
+
+[Tmds.DBus](https://github.com/tmds/Tmds.DBus) - D-Bus integration for Linux desktop functionality.
+
+[Tmds.DBus.Protocol](https://github.com/tmds/Tmds.DBus.Protocol) - D-Bus protocol support.
+
+[SixLabors.ImageSharp](https://github.com/SixLabors/ImageSharp) - Image processing used by the Linux application and tray integration.
+
+## Feedback
+
+If you encounter a bug, have a feature request, or have an issue with FL Studio running through Wine or Proton, please open an issue on the [GitHub repository](https://github.com/devrainz/FLStudio-Linux-RPC/issues).
+
+Feedback and contributions are welcome.
 
 ## License
 
-This project is licensed under the [MIT](https://opensource.org/license/mit/) License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the [MIT License](https://opensource.org/license/mit/) - see the [LICENSE](LICENSE) file for details.
 
 ---
 
-> GitHub [@zfi2](https://github.com/zfi2)
+> GitHub [@devrainz](https://github.com/devrainz)
