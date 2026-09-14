@@ -17,6 +17,18 @@ public static class Program
 {
     public static DiscordRpcClient? _Client;
 
+    private static readonly object
+        RpcClientLock = new object();
+
+    private static DateTime
+        _nextRpcAttemptUtc = DateTime.MinValue;
+
+    private static bool
+        _rpcConnectionEstablished;
+
+    private static readonly TimeSpan
+        RpcRetryDelay = TimeSpan.FromSeconds(5);
+
     public static readonly string ConfigPath = Path.Combine(
         Environment.GetFolderPath(
             Environment.SpecialFolder.UserProfile
@@ -41,16 +53,97 @@ public static class Program
     };
 
 
-    static void InitializeRPC()
+    public static void
+        ResetRPCClient(
+            string reason)
     {
-        _Client = new DiscordRpcClient(
-            ClientID,
-            -1,
-            null,
-            false
+        DiscordRpcClient? client;
+
+        lock (RpcClientLock)
+        {
+            client = _Client;
+            _Client = null;
+            _rpcConnectionEstablished = false;
+            _nextRpcAttemptUtc =
+                DateTime.UtcNow + RpcRetryDelay;
+        }
+
+        Logger.Warn(
+            "Resetting Discord RPC client: " + reason
         );
 
-        _Client.SkipIdenticalPresence = true;
+        try
+        {
+            client?.ClearPresence();
+        }
+        catch (Exception ex)
+        {
+            Logger.Error(
+                "Failed to clear Discord presence during reset",
+                ex
+            );
+        }
+
+        try
+        {
+            client?.Dispose();
+        }
+        catch (Exception ex)
+        {
+            Logger.Error(
+                "Failed to dispose Discord RPC client during reset",
+                ex
+            );
+        }
+    }
+
+    public static void
+        MarkRPCConnectionEstablished()
+    {
+        lock (RpcClientLock)
+        {
+            _rpcConnectionEstablished = true;
+        }
+    }
+
+    static void InitializeRPC()
+    {
+        lock (RpcClientLock)
+        {
+            if (
+                _Client != null &&
+                _rpcConnectionEstablished
+            )
+            {
+                return;
+            }
+
+            if (
+                _Client != null &&
+                DateTime.UtcNow <
+                _nextRpcAttemptUtc
+            )
+            {
+                return;
+            }
+        }
+
+        if (_Client != null)
+        {
+            ResetRPCClient(
+                "client was no longer initialized"
+            );
+        }
+
+        DiscordRpcClient client =
+            new DiscordRpcClient(
+                ClientID,
+                -1,
+                null,
+                false
+            );
+
+        client.SkipIdenticalPresence = true;
 
         string discordLogPath = Path.Combine(
             Environment.GetFolderPath(
@@ -72,7 +165,7 @@ public static class Program
             );
         }
 
-        _Client.Logger =
+        client.Logger =
             new DiscordRPC.Logging.FileLogger(
                 discordLogPath
             )
@@ -82,18 +175,38 @@ public static class Program
             };
 
 
-        _Client.OnReady += Events.OnReady;
-        _Client.OnClose += Events.OnClose;
-        _Client.OnError += Events.OnError;
-        _Client.OnConnectionEstablished +=
+        client.OnReady += Events.OnReady;
+        client.OnClose += Events.OnClose;
+        client.OnError += Events.OnError;
+        client.OnConnectionEstablished +=
             Events.OnConnectionEstablished;
-        _Client.OnConnectionFailed +=
+        client.OnConnectionFailed +=
             Events.OnConnectionFailed;
-        _Client.OnPresenceUpdate +=
+        client.OnPresenceUpdate +=
             Events.OnPresenceUpdate;
 
+        lock (RpcClientLock)
+        {
+            _Client = client;
+            _nextRpcAttemptUtc =
+                DateTime.UtcNow + RpcRetryDelay;
+        }
 
-        _Client.Initialize();
+        try
+        {
+            client.Initialize();
+        }
+        catch (Exception ex)
+        {
+            Logger.Error(
+                "Discord RPC initialization failed",
+                ex
+            );
+
+            ResetRPCClient(
+                "initialization exception"
+            );
+        }
     }
 
 
@@ -195,9 +308,6 @@ public static class Program
                             "FL Studio detected, initializing Discord RPC"
                         );
 
-                        InitializeRPC();
-
-
                         if (ShowTimestamp)
                         {
                             _RPC.Timestamps =
@@ -211,6 +321,8 @@ public static class Program
 
                         wasRunning = true;
                     }
+
+                    InitializeRPC();
 
 
                     _RPC.Details =
@@ -229,11 +341,28 @@ public static class Program
                     }
 
 
-                    _Client?.Invoke();
+                    if (_Client != null)
+                    {
+                        try
+                        {
+                            _Client.Invoke();
 
-                    _Client?.SetPresence(
-                        _RPC
-                    );
+                            _Client.SetPresence(
+                                _RPC
+                            );
+                        }
+                        catch (Exception ex)
+                        {
+                            Logger.Error(
+                                "Discord RPC update failed",
+                                ex
+                            );
+
+                            ResetRPCClient(
+                                "presence update exception"
+                            );
+                        }
+                    }
                 }
                 else
                 {
@@ -244,11 +373,9 @@ public static class Program
                         );
 
 
-                        _Client?.ClearPresence();
-
-                        _Client?.Dispose();
-
-                        _Client = null;
+                        ResetRPCClient(
+                            "FL Studio closed"
+                        );
 
                         wasRunning = false;
                     }

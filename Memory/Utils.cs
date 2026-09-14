@@ -68,6 +68,100 @@ public static class Utils
 {
     private static string _lastWindowTitle = null;
 
+    private static readonly string[]
+        FLStudioProcessNames =
+        {
+            "FL.exe",
+            "FL32.exe",
+            "FL64.exe",
+            "FLStudio.exe"
+        };
+
+    private static bool
+        IsFLStudioProcessCommandLine(
+            string commandLine)
+    {
+        string[] arguments =
+            commandLine.Split(
+                new[] { '\0', ' ', '\t', '\n', '\r' },
+                StringSplitOptions.RemoveEmptyEntries
+            );
+
+        foreach (string argument in arguments)
+        {
+            string fileName =
+                Path.GetFileName(
+                    argument.Trim('"')
+                        .Replace('\\', '/')
+                );
+
+            foreach (string processName in FLStudioProcessNames)
+            {
+                if (
+                    string.Equals(
+                        fileName,
+                        processName,
+                        StringComparison.OrdinalIgnoreCase
+                    )
+                )
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    public static bool
+        IsFLStudioRunning()
+    {
+        try
+        {
+            foreach (string processDirectory in
+                Directory.EnumerateDirectories("/proc"))
+            {
+                string processId =
+                    Path.GetFileName(processDirectory);
+
+                if (
+                    !int.TryParse(
+                        processId,
+                        out _
+                    )
+                )
+                {
+                    continue;
+                }
+
+                string commandLinePath =
+                    Path.Combine(
+                        processDirectory,
+                        "cmdline"
+                    );
+
+                if (
+                    File.Exists(commandLinePath) &&
+                    IsFLStudioProcessCommandLine(
+                        File.ReadAllText(commandLinePath)
+                    )
+                )
+                {
+                    return true;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.Error(
+                "Could not scan Linux processes for FL Studio",
+                ex
+            );
+        }
+
+        return false;
+    }
+
     public static string GetMainWindowsTitleByProcessNames(params string[] processNames)
     {
         try
@@ -195,8 +289,21 @@ public static class Utils
 
         if (string.IsNullOrEmpty(fullTitle))
         {
-            Info.ProjectName = null;
-            Info.AppName = null;
+            /*
+             * Window-title detection needs X11 utilities and a visible
+             * X11 window. Process detection still works on Cinnamon/X11,
+             * Wayland/XWayland, and when xwininfo is unavailable.
+             */
+            if (IsFLStudioRunning())
+            {
+                Info.ProjectName = null;
+                Info.AppName = "FL Studio";
+            }
+            else
+            {
+                Info.ProjectName = null;
+                Info.AppName = null;
+            }
         }
         else
         {

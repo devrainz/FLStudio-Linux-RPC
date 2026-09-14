@@ -9,8 +9,9 @@ public static class Events
 {
     public static void Deinitialize()
     {
-        _Client.ClearPresence();
-        _Client.Dispose();
+        ResetRPCClient(
+            "Discord reported a connection failure"
+        );
     }
 
     public static void OnReady(object sender, ReadyMessage e)
@@ -22,6 +23,7 @@ public static class Events
 
     public static void OnConnectionEstablished(object sender, ConnectionEstablishedMessage e)
     {
+        MarkRPCConnectionEstablished();
         Console.WriteLine("Pipe connection established successfully", Color.LimeGreen);
         Logger.Info("Discord pipe connection established");
     }
