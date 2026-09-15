@@ -7,31 +7,40 @@ using System.Threading.Tasks;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 using Tmds.DBus;
+
 [DBusInterface("org.kde.StatusNotifierWatcher")]
 public interface IStatusNotifierWatcher : IDBusObject
 {
     Task RegisterStatusNotifierItemAsync(string service);
 }
+
 [DBusInterface("org.kde.StatusNotifierItem")]
 public interface IStatusNotifierItem : IDBusObject
 {
     Task<object> GetAsync(string prop);
+
     Task<IDictionary<string, object>> GetAllAsync();
+
     Task SetAsync(
         string prop,
         object val);
+
     Task<IDisposable> WatchPropertiesAsync(
         Action<PropertyChanges> handler);
+
     Task ActivateAsync(
         int x,
         int y);
+
     Task SecondaryActivateAsync(
         int x,
         int y);
+
     Task ContextMenuAsync(
         int x,
         int y);
 }
+
 [DBusInterface("com.canonical.dbusmenu")]
 public interface IDbusMenu : IDBusObject
 {
@@ -47,6 +56,7 @@ public interface IDbusMenu : IDBusObject
             int parentId,
             int recursionDepth,
             string[] propertyNames);
+
     Task<(
         int id,
         IDictionary<string, object> properties
@@ -54,14 +64,17 @@ public interface IDbusMenu : IDBusObject
         GetGroupPropertiesAsync(
             int[] ids,
             string[] propertyNames);
+
     Task<object> GetPropertyAsync(
         int id,
         string property);
+
     Task EventAsync(
         int id,
         string eventId,
         object data,
         uint timestamp);
+
     Task<int[]> EventGroupAsync(
         (
             int id,
@@ -69,93 +82,164 @@ public interface IDbusMenu : IDBusObject
             object data,
             uint timestamp
         )[] events);
+
     Task<bool> AboutToShowAsync(
         int id);
+
     Task<(
         int[] updatesNeeded,
         int[] idErrors
     )>
         AboutToShowGroupAsync(
             int[] ids);
+
     Task<object> GetAsync(
         string prop);
+
     Task<IDictionary<string, object>>
         GetAllAsync();
+
     Task SetAsync(
         string prop,
         object val);
+
     Task<IDisposable>
         WatchPropertiesAsync(
             Action<PropertyChanges> handler);
+
+    /*
+     * Defines the D-Bus signal properly to avoid crashes.
+     */
     Task<IDisposable> WatchLayoutUpdatedAsync(
         Action<(uint revision, int parent)> handler);
 }
+
 public sealed class LinuxTray : IDisposable
 {
     private const string ItemObjectPath =
         "/StatusNotifierItem";
+
     private const string MenuObjectPath =
         "/MenuBar";
+
     private const string WatcherName =
         "org.kde.StatusNotifierWatcher";
+
     private const string WatcherPath =
         "/StatusNotifierWatcher";
+
     private Connection? _connection;
+
     private string? _busName;
+
     private StatusNotifierItem? _item;
+
     private DbusMenu? _menu;
+
     private IStatusNotifierWatcher? _watcherProxy;
+
     private IDisposable? _watcherSubscription;
+
     public event Action? Activated;
+
     public event Action? SecondaryActivated;
+
     public event Action? MenuRequested;
+
+    public event Action? SettingsRequested;
+
     public event Action? QuitRequested;
+
     public async Task StartAsync()
     {
         if (_connection != null)
             return;
+
         try
         {
             Logger.Info(
                 "Initializing Linux StatusNotifier tray..."
             );
+
             _connection =
                 new Connection(
                     Address.Session
                 );
+
             var connectionInfo =
                 await _connection.ConnectAsync();
+
             Logger.Info(
                 "Connected to user D-Bus session"
             );
+
             _busName =
                 connectionInfo.LocalName;
+
             Logger.Info(
                 $"D-Bus unique name: {_busName}"
             );
+
+            /*
+             * ---------------------------------------------------------
+             * Create StatusNotifierItem
+             * ---------------------------------------------------------
+             */
+
             _item =
                 new StatusNotifierItem(
-this
+                    this
                 );
+
+            /*
+             * ---------------------------------------------------------
+             * Create D-Bus menu
+             * ---------------------------------------------------------
+             */
+
             _menu =
                 new DbusMenu(
                     _connection
                 );
+
             _menu.QuitRequested +=
                 () =>
                     QuitRequested?.Invoke();
+
+            /*
+             * ---------------------------------------------------------
+             * Register /MenuBar
+             * ---------------------------------------------------------
+             */
+
             await _connection.RegisterObjectAsync(
                 _menu
             );
+
             Logger.Info(
                 $"DbusMenu object registered at {MenuObjectPath}"
             );
+
+            /*
+             * ---------------------------------------------------------
+             * Register /StatusNotifierItem
+             * ---------------------------------------------------------
+             */
+
             await _connection.RegisterObjectAsync(
                 _item
             );
+
             Logger.Info(
                 $"StatusNotifierItem object registered at {ItemObjectPath}"
             );
+
+            /*
+             * ---------------------------------------------------------
+             * Create watcher proxy
+             * ---------------------------------------------------------
+             */
+
             _watcherProxy =
                 _connection.CreateProxy<
                     IStatusNotifierWatcher
@@ -163,6 +247,13 @@ this
                     WatcherName,
                     WatcherPath
                 );
+
+            /*
+             * ---------------------------------------------------------
+             * Watch for Waybar restarting
+             * ---------------------------------------------------------
+             */
+
             _watcherSubscription =
                 await _connection.ResolveServiceOwnerAsync(
                     WatcherName,
@@ -174,10 +265,19 @@ this
                                 ex
                             )
                 );
+
             Logger.Info(
                 "StatusNotifierWatcher owner monitoring established"
             );
+
+            /*
+             * ---------------------------------------------------------
+             * Register immediately if Waybar is already running.
+             * ---------------------------------------------------------
+             */
+
             await RegisterItemWithWatcherAsync();
+
             Logger.Info(
                 "Linux StatusNotifier tray started"
             );
@@ -188,9 +288,11 @@ this
                 "Failed to initialize Linux tray",
                 ex
             );
+
             Dispose();
         }
     }
+
     private void OnWatcherOwnerChanged(
         ServiceOwnerChangedEventArgs e)
     {
@@ -200,6 +302,7 @@ this
                 $"StatusNotifierWatcher available " +
                 $"(owner: {e.NewOwner}) - registering item"
             );
+
             _ = RegisterItemWithWatcherAsync();
         }
         else
@@ -210,6 +313,7 @@ this
             );
         }
     }
+
     private async Task RegisterItemWithWatcherAsync()
     {
         if (_watcherProxy == null)
@@ -218,26 +322,32 @@ this
                 "Cannot register StatusNotifierItem: " +
                 "watcher proxy is null"
             );
+
             return;
         }
+
         if (_busName == null)
         {
             Logger.Error(
                 "Cannot register StatusNotifierItem: " +
                 "D-Bus bus name is null"
             );
+
             return;
         }
+
         try
         {
             Logger.Info(
                 $"Registering StatusNotifierItem " +
                 $"with watcher as {_busName}"
             );
+
             await _watcherProxy
                 .RegisterStatusNotifierItemAsync(
                     _busName
                 );
+
             Logger.Info(
                 "StatusNotifierItem successfully registered: " +
                 $"{_busName}"
@@ -252,24 +362,33 @@ this
             );
         }
     }
+
     public void Dispose()
     {
         try
         {
             _watcherSubscription?.Dispose();
+
             _watcherSubscription =
                 null;
+
             _watcherProxy =
                 null;
+
             _connection?.Dispose();
+
             _connection =
                 null;
+
             _item =
                 null;
+
             _menu =
                 null;
+
             _busName =
                 null;
+
             Logger.Info(
                 "Linux StatusNotifier tray stopped"
             );
@@ -282,21 +401,31 @@ this
             );
         }
     }
+
+    /*
+     * =================================================================
+     * STATUS NOTIFIER ITEM
+     * =================================================================
+     */
+
     private sealed class StatusNotifierItem :
         IStatusNotifierItem,
         IDBusObject
     {
         private readonly LinuxTray _owner;
+
         public StatusNotifierItem(
             LinuxTray owner)
         {
             _owner =
                 owner;
         }
+
         public ObjectPath ObjectPath =>
             new ObjectPath(
                 ItemObjectPath
             );
+
         private static readonly Lazy<
             (int width, int height, byte[] data)[]
         >
@@ -304,6 +433,7 @@ this
                 new(
                     LoadIcon
                 );
+
         private static readonly int[]
             IconSizes =
             {
@@ -318,10 +448,12 @@ this
                 Environment.GetFolderPath(
                     Environment.SpecialFolder.UserProfile
                 );
+
             string? xdgDataHome =
                 Environment.GetEnvironmentVariable(
                     "XDG_DATA_HOME"
                 );
+
             if (
                 string.IsNullOrWhiteSpace(
                     xdgDataHome
@@ -335,6 +467,7 @@ this
                         "share"
                     );
             }
+
             string[] roots =
             {
                 Path.Combine(xdgDataHome, "icons", "hicolor"),
@@ -358,6 +491,7 @@ this
                 .Select(path => path!)
                 .ToArray();
         }
+
         private static (
             int width,
             int height,
@@ -369,15 +503,18 @@ this
             {
                 string[] iconPaths =
                     FindIconPaths();
+
                 if (iconPaths.Length == 0)
                 {
                     Logger.Error(
                         "Could not find FL Studio tray icon"
                     );
+
                     return Array.Empty<
                         (int, int, byte[])
                     >();
                 }
+
                 Logger.Info(
                     "Using tray icons: " +
                     string.Join(", ", iconPaths)
@@ -427,11 +564,13 @@ this
                     "for IconPixmap",
                     ex
                 );
+
                 return Array.Empty<
                     (int, int, byte[])
                 >();
             }
         }
+
         private IDictionary<string, object>
             GetAllProperties()
         {
@@ -441,42 +580,52 @@ this
                     "Category",
                     "ApplicationStatus"
                 },
+
                 {
                     "Id",
                     "FLStudioRPC"
                 },
+
                 {
                     "Title",
                     "FL Studio Discord RPC"
                 },
+
                 {
                     "Status",
                     "Active"
                 },
+
                 {
                     "WindowId",
                     0
                 },
+
                 {
                     "IconName",
                     "flstudio"
                 },
+
                 {
                     "IconPixmap",
                     IconPixmapCache.Value
                 },
+
                 {
                     "AttentionIconName",
                     ""
                 },
+
                 {
                     "AttentionMovieName",
                     ""
                 },
+
                 {
                     "OverlayIconName",
                     ""
                 },
+
                 {
                     "ToolTip",
                     (
@@ -488,10 +637,12 @@ this
                         ""
                     )
                 },
+
                 {
                     "ItemIsMenu",
                     false
                 },
+
                 {
                     "Menu",
                     new ObjectPath(
@@ -500,12 +651,14 @@ this
                 }
             };
         }
+
         public Task<object>
             GetAsync(
                 string prop)
         {
             var all =
                 GetAllProperties();
+
             return Task.FromResult(
                 all.TryGetValue(
                     prop,
@@ -515,6 +668,7 @@ this
                     : null!
             );
         }
+
         public Task<
             IDictionary<string, object>
         >
@@ -524,12 +678,14 @@ this
                 GetAllProperties()
             );
         }
+
         public Task SetAsync(
             string prop,
             object val)
         {
             return Task.CompletedTask;
         }
+
         public Task<IDisposable>
             WatchPropertiesAsync(
                 Action<PropertyChanges> handler)
@@ -540,6 +696,7 @@ this
                 new NoopDisposable()
             );
         }
+
         public Task ActivateAsync(
             int x,
             int y)
@@ -547,9 +704,12 @@ this
             Logger.Info(
                 $"StatusNotifierItem.Activate({x}, {y})"
             );
+
             _owner.Activated?.Invoke();
+
             return Task.CompletedTask;
         }
+
         public Task SecondaryActivateAsync(
             int x,
             int y)
@@ -557,9 +717,12 @@ this
             Logger.Info(
                 $"StatusNotifierItem.SecondaryActivate({x}, {y})"
             );
+
             _owner.SecondaryActivated?.Invoke();
+
             return Task.CompletedTask;
         }
+
         public Task ContextMenuAsync(
             int x,
             int y)
@@ -567,9 +730,12 @@ this
             Logger.Info(
                 $"StatusNotifierItem.ContextMenu({x}, {y})"
             );
+
             _owner.MenuRequested?.Invoke();
+
             return Task.CompletedTask;
         }
+
         private sealed class NoopDisposable :
             IDisposable
         {
@@ -578,27 +744,44 @@ this
             }
         }
     }
+
+    /*
+     * =================================================================
+     * DBUS MENU
+     * =================================================================
+     */
+
     private sealed class DbusMenu :
         IDbusMenu,
         IDBusObject
     {
         private readonly Connection _connection;
+
         public DbusMenu(
             Connection connection)
         {
             _connection =
                 connection;
         }
+
         private const int IdSecretMode =
             1;
+
         private const int IdAutostart =
             2;
+
         private const int IdSeparator =
             3;
+
         private const int IdAbout =
             4;
+
+        private const int IdSettings =
+            6;
+
         private const int IdExit =
             5;
+
         private static readonly HashSet<int>
             KnownIds =
                 new()
@@ -607,13 +790,17 @@ this
                     IdAutostart,
                     IdSeparator,
                     IdAbout,
+                    IdSettings,
                     IdExit
                 };
+
         private const string AboutUrl =
             "https://github.com/devrainz/FLStudio-Linux-RPC";
+
         private const string
             InstalledExecutablePath =
                 "/opt/flstudio-rpc/FLStudioRPC";
+
         private static string
             GetXdgConfigHome()
         {
@@ -621,6 +808,7 @@ this
                 Environment.GetEnvironmentVariable(
                     "XDG_CONFIG_HOME"
                 );
+
             if (
                 !string.IsNullOrWhiteSpace(
                     xdgConfigHome
@@ -629,6 +817,7 @@ this
             {
                 return xdgConfigHome;
             }
+
             return Path.Combine(
                 Environment.GetFolderPath(
                     Environment.SpecialFolder.UserProfile
@@ -636,6 +825,7 @@ this
                 ".config"
             );
         }
+
         private static string
             AutostartDesktopPath =>
                 Path.Combine(
@@ -643,9 +833,14 @@ this
                     "autostart",
                     "flstudiorpc.desktop"
                 );
+
         private static string
             GetAutostartExecutablePath()
         {
+            /*
+             * Prefer the installed release so a development build cannot
+             * create an autostart entry pointing into the Git repository.
+             */
             if (
                 File.Exists(
                     InstalledExecutablePath
@@ -654,6 +849,10 @@ this
             {
                 return InstalledExecutablePath;
             }
+
+            /*
+             * Development / portable fallback.
+             */
             return Environment.ProcessPath
                 ?? Process.GetCurrentProcess()
                     .MainModule?
@@ -663,26 +862,38 @@ this
                     "FLStudioRPC"
                 );
         }
+
         public ObjectPath ObjectPath =>
             new ObjectPath(
                 MenuObjectPath
             );
+
         public event Action?
             QuitRequested;
-        public event Action<(uint revision, int parent)>? LayoutUpdated;
+
+        public event Action?
+            SettingsRequested;
+
+        public event Action<(uint revision, int parent)>?
+            LayoutUpdated;
+
         public Task<IDisposable> WatchLayoutUpdatedAsync(
             Action<(uint revision, int parent)> handler)
         {
             LayoutUpdated += handler;
+            
             return Task.FromResult<IDisposable>(
                 new EventUnsubscriber(() => LayoutUpdated -= handler)
             );
         }
+
         private static readonly object[]
             EmptyChildren =
                 Array.Empty<object>();
+
         private uint _revision =
             1;
+
         private static bool
             IsAutostartEnabled()
         {
@@ -690,6 +901,7 @@ this
                 AutostartDesktopPath
             );
         }
+
         private static void
             SetAutostartEnabled(
                 bool enabled)
@@ -702,6 +914,7 @@ this
                         Path.GetDirectoryName(
                             AutostartDesktopPath
                         );
+
                     if (
                         !string.IsNullOrEmpty(
                             directory
@@ -712,8 +925,10 @@ this
                             directory
                         );
                     }
+
                     string exePath =
                         GetAutostartExecutablePath();
+
                     string desktopEntry =
                         "[Desktop Entry]\n" +
                         "Type=Application\n" +
@@ -727,10 +942,12 @@ this
                         "StartupNotify=false\n" +
                         "Hidden=false\n" +
                         "NoDisplay=false\n";
+
                     File.WriteAllText(
                         AutostartDesktopPath,
                         desktopEntry
                     );
+
                     Logger.Info(
                         "Autostart enabled, wrote " +
                         AutostartDesktopPath
@@ -747,6 +964,7 @@ this
                         File.Delete(
                             AutostartDesktopPath
                         );
+
                         Logger.Info(
                             "Autostart disabled, removed " +
                             AutostartDesktopPath
@@ -762,6 +980,7 @@ this
                 );
             }
         }
+
         private (
             int id,
             IDictionary<string, object> properties,
@@ -773,6 +992,7 @@ this
                 (
                     id:
                         IdSecretMode,
+
                     properties:
                         (IDictionary<string, object>)
                         new Dictionary<string, object>
@@ -782,22 +1002,27 @@ this
                                 "Secret Mode " +
                                 "(Hide Project Name)"
                             },
+
                             {
                                 "enabled",
                                 true
                             },
+
                             {
                                 "visible",
                                 true
                             },
+
                             {
                                 "type",
                                 "standard"
                             },
+
                             {
                                 "toggle-type",
                                 "checkmark"
                             },
+
                             {
                                 "toggle-state",
                                 ConfigValues.SecretMode
@@ -805,13 +1030,16 @@ this
                                     : 0
                             }
                         },
+
                     children:
                         EmptyChildren
                 );
+
             var autostart =
                 (
                     id:
                         IdAutostart,
+
                     properties:
                         (IDictionary<string, object>)
                         new Dictionary<string, object>
@@ -820,22 +1048,27 @@ this
                                 "label",
                                 "Start with Linux"
                             },
+
                             {
                                 "enabled",
                                 true
                             },
+
                             {
                                 "visible",
                                 true
                             },
+
                             {
                                 "type",
                                 "standard"
                             },
+
                             {
                                 "toggle-type",
                                 "checkmark"
                             },
+
                             {
                                 "toggle-state",
                                 IsAutostartEnabled()
@@ -843,13 +1076,16 @@ this
                                     : 0
                             }
                         },
+
                     children:
                         EmptyChildren
                 );
+
             var separator =
                 (
                     id:
                         IdSeparator,
+
                     properties:
                         (IDictionary<string, object>)
                         new Dictionary<string, object>
@@ -858,18 +1094,22 @@ this
                                 "type",
                                 "separator"
                             },
+
                             {
                                 "visible",
                                 true
                             }
                         },
+
                     children:
                         EmptyChildren
                 );
+
             var about =
                 (
                     id:
                         IdAbout,
+
                     properties:
                         (IDictionary<string, object>)
                         new Dictionary<string, object>
@@ -878,26 +1118,32 @@ this
                                 "label",
                                 "About"
                             },
+
                             {
                                 "enabled",
                                 true
                             },
+
                             {
                                 "visible",
                                 true
                             },
+
                             {
                                 "type",
                                 "standard"
                             }
                         },
+
                     children:
                         EmptyChildren
                 );
+
             var exit =
                 (
                     id:
                         IdExit,
+
                     properties:
                         (IDictionary<string, object>)
                         new Dictionary<string, object>
@@ -906,22 +1152,61 @@ this
                                 "label",
                                 "Exit"
                             },
+
                             {
                                 "enabled",
                                 true
                             },
+
                             {
                                 "visible",
                                 true
                             },
+
                             {
                                 "type",
                                 "standard"
                             }
                         },
+
                     children:
                         EmptyChildren
                 );
+
+            var settings =
+                (
+                    id:
+                        IdSettings,
+
+                    properties:
+                        (IDictionary<string, object>)
+                        new Dictionary<string, object>
+                        {
+                            {
+                                "label",
+                                "Open Settings"
+                            },
+
+                            {
+                                "enabled",
+                                true
+                            },
+
+                            {
+                                "visible",
+                                true
+                            },
+
+                            {
+                                "type",
+                                "standard"
+                            }
+                        },
+
+                    children:
+                        EmptyChildren
+                );
+
             var rootProperties =
                 new Dictionary<string, object>
                 {
@@ -930,6 +1215,7 @@ this
                         "submenu"
                     }
                 };
+
             return
                 (
                     0,
@@ -940,10 +1226,12 @@ this
                         autostart,
                         separator,
                         about,
+                        settings,
                         exit
                     }
                 );
         }
+
         public Task<(
             uint revision,
             (
@@ -962,8 +1250,10 @@ this
                 $"parentId={parentId}, " +
                 $"recursionDepth={recursionDepth})"
             );
+
             var layout =
                 BuildLayout();
+
             return Task.FromResult<
                 (
                     uint,
@@ -980,6 +1270,7 @@ this
                 )
             );
         }
+
         public Task<(
             int id,
             IDictionary<string, object> properties
@@ -992,12 +1283,14 @@ this
                 "DbusMenu.GetGroupProperties(" +
                 $"ids=[{string.Join(",", ids)}])"
             );
+
             var (
                 _,
                 _,
                 children
             ) =
                 BuildLayout();
+
             var result =
                 new List<
                     (
@@ -1005,6 +1298,7 @@ this
                         IDictionary<string, object>
                     )
                 >();
+
             foreach (
                 var child in children
             )
@@ -1019,6 +1313,7 @@ this
                          IDictionary<string, object>,
                          object[])
                     )child;
+
                 if (
                     Array.IndexOf(
                         ids,
@@ -1034,10 +1329,12 @@ this
                     );
                 }
             }
+
             return Task.FromResult(
                 result.ToArray()
             );
         }
+
         public Task<object>
             GetPropertyAsync(
                 int id,
@@ -1048,12 +1345,14 @@ this
                 $"id={id}, " +
                 $"property={property})"
             );
+
             var (
                 _,
                 _,
                 children
             ) =
                 BuildLayout();
+
             foreach (
                 var child in children
             )
@@ -1068,6 +1367,7 @@ this
                          IDictionary<string, object>,
                          object[])
                     )child;
+
                 if (
                     childId == id &&
                     properties.TryGetValue(
@@ -1081,10 +1381,12 @@ this
                     );
                 }
             }
+
             return Task.FromResult<object>(
                 null!
             );
         }
+
         private void
             HandleClickEvent(
                 int id,
@@ -1099,45 +1401,72 @@ this
                     "(eventId != 'clicked'): " +
                     eventId
                 );
+
                 return;
             }
+
             switch (id)
             {
                 case IdSecretMode:
+
                     ConfigValues.SecretMode =
                         !ConfigValues.SecretMode;
+
                     ConfigSettings.SaveCurrentConfig(
                         Program.ConfigPath
                     );
+
                     _revision++;
+
                     Logger.Info(
                         "Secret Mode toggled: " +
                         $"{ConfigValues.SecretMode}, " +
                         $"revision={_revision}"
                     );
+
                     LayoutUpdated?.Invoke((_revision, 0));
+
                     break;
+
                 case IdAutostart:
+
                     SetAutostartEnabled(
                         !IsAutostartEnabled()
                     );
+
                     _revision++;
+
                     Logger.Info(
                         "Autostart toggled, " +
                         $"revision={_revision}"
                     );
+
                     LayoutUpdated?.Invoke((_revision, 0));
+
                     break;
+
                 case IdAbout:
+
                     OpenPath(
                         AboutUrl
                     );
+
                     break;
+
+                case IdSettings:
+
+                    SettingsRequested?.Invoke();
+
+                    break;
+
                 case IdExit:
+
                     QuitRequested?.Invoke();
+
                     break;
             }
         }
+
         public Task EventAsync(
             int id,
             string eventId,
@@ -1149,12 +1478,15 @@ this
                 $"id={id}, " +
                 $"eventId={eventId})"
             );
+
             HandleClickEvent(
                 id,
                 eventId
             );
+
             return Task.CompletedTask;
         }
+
         public Task<int[]>
             EventGroupAsync(
                 (
@@ -1168,8 +1500,10 @@ this
                 "DbusMenu.EventGroup(" +
                 $"count={events.Length})"
             );
+
             var idErrors =
                 new List<int>();
+
             foreach (
                 var (
                     id,
@@ -1184,6 +1518,7 @@ this
                     $"id={id}, " +
                     $"eventId={eventId}"
                 );
+
                 if (
                     !KnownIds.Contains(
                         id
@@ -1193,17 +1528,21 @@ this
                     idErrors.Add(
                         id
                     );
+
                     continue;
                 }
+
                 HandleClickEvent(
                     id,
                     eventId
                 );
             }
+
             return Task.FromResult(
                 idErrors.ToArray()
             );
         }
+
         public Task<bool>
             AboutToShowAsync(
                 int id)
@@ -1211,10 +1550,12 @@ this
             Logger.Info(
                 $"DbusMenu.AboutToShow(id={id})"
             );
+
             return Task.FromResult(
                 true
             );
         }
+
         public Task<(
             int[] updatesNeeded,
             int[] idErrors
@@ -1226,6 +1567,7 @@ this
                 "DbusMenu.AboutToShowGroup(" +
                 $"ids=[{string.Join(",", ids)}])"
             );
+
             var idErrors =
                 ids
                     .Where(
@@ -1235,6 +1577,7 @@ this
                             )
                     )
                     .ToArray();
+
             var updatesNeeded =
                 ids
                     .Where(
@@ -1244,6 +1587,7 @@ this
                             )
                     )
                     .ToArray();
+
             return Task.FromResult(
                 (
                     updatesNeeded,
@@ -1251,12 +1595,14 @@ this
                 )
             );
         }
+
         public Task<object>
             GetAsync(
                 string prop)
         {
             var all =
                 GetAllPropertiesInternal();
+
             return Task.FromResult(
                 all.TryGetValue(
                     prop,
@@ -1266,6 +1612,7 @@ this
                     : null!
             );
         }
+
         public Task<
             IDictionary<string, object>
         >
@@ -1275,6 +1622,7 @@ this
                 GetAllPropertiesInternal()
             );
         }
+
         private IDictionary<string, object>
             GetAllPropertiesInternal()
         {
@@ -1284,26 +1632,31 @@ this
                     "Version",
                     (uint)3
                 },
+
                 {
                     "TextDirection",
                     "ltr"
                 },
+
                 {
                     "Status",
                     "normal"
                 },
+
                 {
                     "IconThemePath",
                     Array.Empty<string>()
                 }
             };
         }
+
         public Task SetAsync(
             string prop,
             object val)
         {
             return Task.CompletedTask;
         }
+
         public Task<IDisposable>
             WatchPropertiesAsync(
                 Action<PropertyChanges> handler)
@@ -1314,6 +1667,7 @@ this
                 new NoopDisposable()
             );
         }
+
         private static void
             OpenPath(
                 string path)
@@ -1325,8 +1679,10 @@ this
                     {
                         FileName =
                             "xdg-open",
+
                         Arguments =
                             $"\"{path}\"",
+
                         UseShellExecute =
                             false
                     }
@@ -1341,6 +1697,7 @@ this
                 );
             }
         }
+
         private sealed class NoopDisposable :
             IDisposable
         {
@@ -1348,19 +1705,27 @@ this
             {
             }
         }
+
+        /*
+         * Correctly unhooks the handler from the layout event
+         * when the D-Bus subscription is closed.
+         */
         private sealed class EventUnsubscriber :
             IDisposable
         {
             private Action? _unsubscribe;
+
             public EventUnsubscriber(
                 Action unsubscribe)
             {
                 _unsubscribe =
                     unsubscribe;
             }
+
             public void Dispose()
             {
                 _unsubscribe?.Invoke();
+
                 _unsubscribe =
                     null;
             }

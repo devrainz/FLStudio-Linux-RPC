@@ -241,6 +241,15 @@ public static class Program
                 );
             };
 
+            _tray.SettingsRequested += () =>
+            {
+                Logger.Info(
+                    "Settings window requested"
+                );
+
+                SettingsWindow.Launch();
+            };
+
             _tray.QuitRequested += () =>
             {
                 Logger.Info(
@@ -250,6 +259,9 @@ public static class Program
                 Environment.Exit(0);
             };
 
+            /*
+             * Start the StatusNotifierItem.
+             */
             _tray.StartAsync()
                 .GetAwaiter()
                 .GetResult();
@@ -396,6 +408,30 @@ public static class Program
 
     static void Main(string[] args)
     {
+        if (
+            args.Any(
+                argument =>
+                    string.Equals(
+                        argument,
+                        "--settings",
+                        StringComparison.OrdinalIgnoreCase
+                    )
+            )
+        )
+        {
+            SettingsWindow.Run(
+                args.Any(
+                    argument =>
+                        string.Equals(
+                            argument,
+                            "--first-run",
+                            StringComparison.OrdinalIgnoreCase
+                        )
+                )
+            );
+            return;
+        }
+
         bool createdNew;
 
 
@@ -415,8 +451,44 @@ public static class Program
             return;
         }
 
+
+        /*
+         * Initialize the Linux tray FIRST.
+         *
+         * This is independent from FL Studio.
+         *
+         * Therefore:
+         *
+         * FL Studio open   -> tray exists
+         * FL Studio closed -> tray still exists
+         */
         SetupTray();
 
+        SaveConfig(ConfigPath);
+
+        if (!ConfigValues.HasCompletedInitialSetup)
+        {
+            if (ShowSettingsOnStartup)
+            {
+                SettingsWindow.Launch(
+                    firstRun: true
+                );
+            }
+            else
+            {
+                ConfigValues.HasCompletedInitialSetup =
+                    true;
+
+                ConfigSettings.SaveCurrentConfig(
+                    ConfigPath
+                );
+            }
+        }
+
+
+        /*
+         * Run the existing Discord RPC detection loop.
+         */
         Thread rpcThread =
             new Thread(
                 RunRPCLoop
@@ -431,6 +503,10 @@ public static class Program
 
         rpcThread.Join();
 
+
+        /*
+         * Cleanup.
+         */
         _tray?.Dispose();
 
         _Client?.Dispose();

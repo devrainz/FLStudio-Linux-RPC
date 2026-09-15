@@ -28,6 +28,12 @@ public static class ConfigValues
 
     [DefaultValue(4000)]
     public static int UpdateInterval { get; set; }
+
+    [DefaultValue(true)]
+    public static bool ShowSettingsOnStartup { get; set; }
+
+    [DefaultValue(false)]
+    public static bool HasCompletedInitialSetup { get; set; }
 }
 
 public static class ConfigSettings

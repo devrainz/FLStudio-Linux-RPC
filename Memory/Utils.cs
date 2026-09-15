@@ -52,6 +52,7 @@ public static class Logger
     public static void Info(string message) => Log("INFO", message);
     public static void Warn(string message) => Log("WARN", message);
     public static void Error(string message) => Log("ERROR", message);
+
     public static void Error(string message, Exception ex)
     {
         Log("ERROR", $"{message}: {ex.Message}");
@@ -266,6 +267,15 @@ public static class Utils
                     classEnd - classStart
                 );
 
+                /*
+                 * A title alone is not proof that a window belongs to FL
+                 * Studio. Cinnamon, GNOME and other applications can have
+                 * generic titles such as "Settings" or "Credits".
+                 *
+                 * Wine exposes the Windows executable in WM_CLASS (normally
+                 * FL64.exe, FL32.exe or FL.exe), so only accept windows whose
+                 * class belongs to one of the known FL Studio executables.
+                 */
                 if (!IsFLStudioWindowClass(windowClass))
                     continue;
 
@@ -303,6 +313,12 @@ public static class Utils
                     return title;
                 }
 
+                /*
+                 * Keep an FL-owned dialog/plugin window as a fallback, but
+                 * continue looking for the main window first. This supports
+                 * windows inside FL Studio without accepting similarly named
+                 * windows from unrelated desktop applications.
+                 */
                 if (!string.IsNullOrWhiteSpace(title) && fallbackTitle == null)
                 {
                     fallbackTitle = title;
@@ -346,6 +362,11 @@ public static class Utils
     {
         FLInfo Info = new FLInfo();
 
+        /*
+         * Never use a desktop window title after the real FL Studio process
+         * has exited. This also prevents stale or unrelated X11 windows from
+         * keeping the Discord presence alive while FL Studio is closed.
+         */
         if (!IsFLStudioRunning())
         {
             _lastWindowTitle = null;
@@ -359,6 +380,11 @@ public static class Utils
 
         if (string.IsNullOrEmpty(fullTitle))
         {
+            /*
+             * Window-title detection needs X11 utilities and a visible
+             * X11 window. Process detection still works on Cinnamon/X11,
+             * Wayland/XWayland, and when xwininfo is unavailable.
+             */
             Info.ProjectName = null;
             Info.AppName = "FL Studio";
         }

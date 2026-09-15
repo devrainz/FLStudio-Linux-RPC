@@ -32,6 +32,14 @@ if [[ "$(uname -m)" != "x86_64" ]]; then
     exit 1
 fi
 
+if command -v ldconfig >/dev/null 2>&1 &&
+   ! ldconfig -p 2>/dev/null | grep -q 'libadwaita-1\.so'; then
+    echo "WARNING: libadwaita was not detected."
+    echo "         Install GTK4 and libadwaita using your distribution's packages"
+    echo "         for the settings window to work."
+    echo
+fi
+
 APP_SOURCE="$SCRIPT_DIR/FLStudioRPC"
 ICON_SOURCE_DIR="$SCRIPT_DIR/Icons/hicolor"
 
