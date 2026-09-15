@@ -1,10 +1,6 @@
 ﻿using System;
 using System.IO;
 using System.Diagnostics;
-using System.Collections.Generic;
-using System.Text.RegularExpressions;
-using System.Linq;
-
 using Console = Colorful.Console;
 
 using static ConfigValues;
@@ -56,7 +52,6 @@ public static class Logger
     public static void Info(string message) => Log("INFO", message);
     public static void Warn(string message) => Log("WARN", message);
     public static void Error(string message) => Log("ERROR", message);
-
     public static void Error(string message, Exception ex)
     {
         Log("ERROR", $"{message}: {ex.Message}");
@@ -66,7 +61,7 @@ public static class Logger
 
 public static class Utils
 {
-    private static string _lastWindowTitle = null;
+    private static string? _lastWindowTitle;
 
     private static readonly string[]
         FLStudioProcessNames =
@@ -101,6 +96,47 @@ public static class Utils
                     string.Equals(
                         fileName,
                         processName,
+                        StringComparison.OrdinalIgnoreCase
+                    )
+                )
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private static bool
+        IsFLStudioWindowClass(
+            string windowClass)
+    {
+        string[] classNames =
+            windowClass.Split(
+                new[] { ' ', '\t', ',', '"', '\'' },
+                StringSplitOptions.RemoveEmptyEntries
+            );
+
+        foreach (string className in classNames)
+        {
+            string fileName =
+                Path.GetFileName(
+                    className.Replace('\\', '/')
+                );
+
+            foreach (string processName in FLStudioProcessNames)
+            {
+                if (
+                    string.Equals(
+                        fileName,
+                        processName,
+                        StringComparison.OrdinalIgnoreCase
+                    )
+                    ||
+                    string.Equals(
+                        Path.GetFileNameWithoutExtension(fileName),
+                        Path.GetFileNameWithoutExtension(processName),
                         StringComparison.OrdinalIgnoreCase
                     )
                 )
@@ -162,7 +198,7 @@ public static class Utils
         return false;
     }
 
-    public static string GetMainWindowsTitleByProcessNames(params string[] processNames)
+    public static string? GetMainWindowsTitleByProcessNames(params string[] processNames)
     {
         try
         {
@@ -175,11 +211,17 @@ public static class Utils
                 CreateNoWindow = true
             };
 
-            using Process process = Process.Start(psi);
+            using Process? process = Process.Start(psi);
+
+            if (process == null)
+            {
+                return null;
+            }
 
             string output = process.StandardOutput.ReadToEnd();
             process.WaitForExit();
 
+            string? fallbackTitle = null;
 
             foreach (string line in output.Split('\n'))
             {
@@ -202,6 +244,29 @@ public static class Utils
                 int secondQuote = line.IndexOf('"', firstQuote + 1);
 
                 if (secondQuote == -1)
+                    continue;
+
+
+                int classStart = line.IndexOf(": (", secondQuote, StringComparison.Ordinal);
+
+                if (classStart == -1)
+                    continue;
+
+
+                classStart += 3;
+
+                int classEnd = line.IndexOf(')', classStart);
+
+                if (classEnd == -1)
+                    continue;
+
+
+                string windowClass = line.Substring(
+                    classStart,
+                    classEnd - classStart
+                );
+
+                if (!IsFLStudioWindowClass(windowClass))
                     continue;
 
 
@@ -238,27 +303,24 @@ public static class Utils
                     return title;
                 }
 
-                if (
-                    title.Contains(
-                        "Settings",
-                        StringComparison.OrdinalIgnoreCase)
-                    ||
-                    title.Contains(
-                        "credits",
-                        StringComparison.OrdinalIgnoreCase)
-                )
+                if (!string.IsNullOrWhiteSpace(title) && fallbackTitle == null)
                 {
-                    if (title != _lastWindowTitle)
-                    {
-                        Logger.Info(
-                            $"Window title changed: '{_lastWindowTitle}' -> '{title}'"
-                        );
-
-                        _lastWindowTitle = title;
-                    }
-
-                    return title;
+                    fallbackTitle = title;
                 }
+            }
+
+            if (fallbackTitle != null)
+            {
+                if (fallbackTitle != _lastWindowTitle)
+                {
+                    Logger.Info(
+                        $"Window title changed: '{_lastWindowTitle}' -> '{fallbackTitle}'"
+                    );
+
+                    _lastWindowTitle = fallbackTitle;
+                }
+
+                return fallbackTitle;
             }
         }
         catch (Exception ex)
@@ -274,7 +336,7 @@ public static class Utils
     }
 
 
-    public static Version GetApplicationVersion(string processName)
+    public static Version? GetApplicationVersion(string processName)
     {
         return null;
     }
@@ -284,32 +346,27 @@ public static class Utils
     {
         FLInfo Info = new FLInfo();
 
-        string fullTitle = GetMainWindowsTitleByProcessNames("FL");
+        if (!IsFLStudioRunning())
+        {
+            _lastWindowTitle = null;
+            Info.ProjectName = null;
+            Info.AppName = null;
+            return Info;
+        }
+
+        string? fullTitle = GetMainWindowsTitleByProcessNames("FL");
 
 
         if (string.IsNullOrEmpty(fullTitle))
         {
-            /*
-             * Window-title detection needs X11 utilities and a visible
-             * X11 window. Process detection still works on Cinnamon/X11,
-             * Wayland/XWayland, and when xwininfo is unavailable.
-             */
-            if (IsFLStudioRunning())
-            {
-                Info.ProjectName = null;
-                Info.AppName = "FL Studio";
-            }
-            else
-            {
-                Info.ProjectName = null;
-                Info.AppName = null;
-            }
+            Info.ProjectName = null;
+            Info.AppName = "FL Studio";
         }
         else
         {
             if (AccurateVersion)
             {
-                Version accurateVersion =
+                Version? accurateVersion =
                     GetApplicationVersion("FL64")
                     ?? GetApplicationVersion("FL");
 
@@ -343,8 +400,8 @@ public static class Utils
 
     public struct FLInfo
     {
-        public string AppName { get; set; }
-        public string ProjectName { get; set; }
-        public string AccurateVersion { get; set; }
+        public string? AppName { get; set; }
+        public string? ProjectName { get; set; }
+        public string? AccurateVersion { get; set; }
     }
 }

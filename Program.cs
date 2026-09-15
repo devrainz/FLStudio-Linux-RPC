@@ -250,9 +250,6 @@ public static class Program
                 Environment.Exit(0);
             };
 
-            /*
-             * Start the StatusNotifierItem.
-             */
             _tray.StartAsync()
                 .GetAwaiter()
                 .GetResult();
@@ -418,23 +415,8 @@ public static class Program
             return;
         }
 
-
-        /*
-         * Initialize the Linux tray FIRST.
-         *
-         * This is independent from FL Studio.
-         *
-         * Therefore:
-         *
-         * FL Studio open   -> tray exists
-         * FL Studio closed -> tray still exists
-         */
         SetupTray();
 
-
-        /*
-         * Run the existing Discord RPC detection loop.
-         */
         Thread rpcThread =
             new Thread(
                 RunRPCLoop
@@ -449,10 +431,6 @@ public static class Program
 
         rpcThread.Join();
 
-
-        /*
-         * Cleanup.
-         */
         _tray?.Dispose();
 
         _Client?.Dispose();
