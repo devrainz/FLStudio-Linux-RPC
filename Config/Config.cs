@@ -23,9 +23,6 @@ public static class ConfigValues
     [DefaultValue(true)]
     public static bool DisplayConfigInfo { get; set; }
 
-    [DefaultValue(false)]
-    public static bool AccurateVersion { get; set; }
-
     [DefaultValue(4000)]
     public static int UpdateInterval { get; set; }
 

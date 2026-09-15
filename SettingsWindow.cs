@@ -62,7 +62,18 @@ public static class SettingsWindow
                 );
             }
 
-            Process.Start(startInfo);
+            Process? process = Process.Start(startInfo);
+
+            if (process == null)
+            {
+                throw new InvalidOperationException(
+                    "The settings process could not be started."
+                );
+            }
+
+            Logger.Info(
+                $"Settings process started (PID {process.Id}, firstRun={firstRun})"
+            );
         }
         catch (Exception ex)
         {
@@ -75,10 +86,14 @@ public static class SettingsWindow
     {
         try
         {
+            Logger.Info(
+                $"Starting libadwaita settings UI (firstRun={firstRun})"
+            );
+
             ConfigSettings.SaveConfig(Program.ConfigPath);
 
             var application =
-                Gtk.Application.New(
+                Adw.Application.New(
                     ApplicationId,
                     Gio.ApplicationFlags.FlagsNone
                 );
@@ -86,12 +101,13 @@ public static class SettingsWindow
             application.OnActivate +=
                 (sender, _) =>
                 {
-                    var gtkApplication =
-                        (Gtk.Application)sender;
+                    Logger.Info(
+                        "libadwaita settings application activated"
+                    );
 
                     var window =
                         Adw.ApplicationWindow.New(
-                            gtkApplication
+                            application
                         );
 
                     window.Title =
@@ -137,7 +153,7 @@ public static class SettingsWindow
 
                     var subtitle =
                         Gtk.Label.New(
-                            "Configure how the Linux tray and Discord Rich Presence behave."
+                            "First startup configuration"
                         );
 
                     subtitle.AddCssClass("dim-label");
@@ -165,31 +181,31 @@ public static class SettingsWindow
 
                     AddSwitchRow(
                         root,
-                        "Show timestamp",
-                        "Show when the current FL Studio session started.",
+                        "Show elapsed time",
+                        "Show how long the current FL Studio session has been running on Discord.",
                         ConfigValues.ShowTimestamp,
                         active => ConfigValues.ShowTimestamp = active
                     );
 
                     AddSwitchRow(
                         root,
-                        "Use accurate FL Studio version",
-                        "Try to include the detected FL Studio version in the activity.",
-                        ConfigValues.AccurateVersion,
-                        active => ConfigValues.AccurateVersion = active
+                        "Start with Linux",
+                        "Start FL Studio Discord RPC automatically when you log in.",
+                        LinuxTray.IsStartWithLinuxEnabled(),
+                        active => LinuxTray.SetStartWithLinuxEnabled(active)
                     );
 
                     AddSwitchRow(
                         root,
                         "Show this window on startup",
-                        "Open these settings the first time the app starts.",
+                        "Open this settings window whenever FL Studio Discord RPC starts.",
                         ConfigValues.ShowSettingsOnStartup,
                         active => ConfigValues.ShowSettingsOnStartup = active
                     );
 
                     var closeButton =
                         Gtk.Button.NewWithLabel(
-                            "Close"
+                            "Done"
                         );
 
                     closeButton.AddCssClass(
@@ -229,9 +245,20 @@ public static class SettingsWindow
                         root;
 
                     window.Present();
+
+                    Logger.Info(
+                        "libadwaita settings window presented"
+                    );
                 };
 
-            return application.RunWithSynchronizationContext(null);
+            int exitCode =
+                application.RunWithSynchronizationContext(null);
+
+            Logger.Info(
+                $"libadwaita settings UI exited with code {exitCode}"
+            );
+
+            return exitCode;
         }
         catch (Exception ex)
         {

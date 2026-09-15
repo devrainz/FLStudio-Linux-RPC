@@ -40,7 +40,12 @@ public static class Logger
 
                 using (var writer = new StreamWriter(LogFilePath, true))
                 {
-                    writer.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] [{level}] {message}");
+                    string line =
+                        $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] [{level}] {message}";
+
+                    writer.WriteLine(line);
+
+                    System.Console.Error.WriteLine(line);
                 }
             }
         }
@@ -337,12 +342,6 @@ public static class Utils
     }
 
 
-    public static Version? GetApplicationVersion(string processName)
-    {
-        return null;
-    }
-
-
     public static FLInfo GetFLInfo()
     {
         FLInfo Info = new FLInfo();
@@ -366,33 +365,17 @@ public static class Utils
         }
         else
         {
-            if (AccurateVersion)
-            {
-                Version? accurateVersion =
-                    GetApplicationVersion("FL64")
-                    ?? GetApplicationVersion("FL");
+            int hyphenIndex = fullTitle.LastIndexOf(" - ");
 
-                Info.AppName =
-                    accurateVersion != null
-                    ? $"FL Studio {accurateVersion}"
-                    : null;
-            }
-            else
-            {
-                int hyphenIndex = fullTitle.LastIndexOf(" - ");
+            Info.ProjectName =
+                hyphenIndex == -1
+                ? null
+                : fullTitle.Substring(0, hyphenIndex).Trim();
 
-
-                Info.ProjectName =
-                    hyphenIndex == -1
-                    ? null
-                    : fullTitle.Substring(0, hyphenIndex).Trim();
-
-
-                Info.AppName =
-                    hyphenIndex == -1
-                    ? fullTitle.Trim()
-                    : fullTitle.Substring(hyphenIndex + 3).Trim();
-            }
+            Info.AppName =
+                hyphenIndex == -1
+                ? fullTitle.Trim()
+                : fullTitle.Substring(hyphenIndex + 3).Trim();
         }
 
 
@@ -404,6 +387,5 @@ public static class Utils
     {
         public string? AppName { get; set; }
         public string? ProjectName { get; set; }
-        public string? AccurateVersion { get; set; }
     }
 }

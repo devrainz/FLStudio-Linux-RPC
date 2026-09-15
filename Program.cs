@@ -286,12 +286,16 @@ public static class Program
         );
 
         bool wasRunning = false;
+        DateTime? sessionStartUtc = null;
 
 
         while (true)
         {
             try
             {
+
+                LoadConfig(ConfigPath);
+
                 FLInfo FLStudioData =
                     GetFLInfo();
 
@@ -314,18 +318,21 @@ public static class Program
                             "FL Studio detected, initializing Discord RPC"
                         );
 
-                        if (ShowTimestamp)
-                        {
-                            _RPC.Timestamps =
-                                new Timestamps()
-                                {
-                                    Start =
-                                        DateTime.UtcNow
-                                };
-                        }
-
-
+                        sessionStartUtc = DateTime.UtcNow;
                         wasRunning = true;
+                    }
+
+                    if (ShowTimestamp && sessionStartUtc.HasValue)
+                    {
+                        _RPC.Timestamps =
+                            new Timestamps()
+                            {
+                                Start = sessionStartUtc.Value
+                            };
+                    }
+                    else
+                    {
+                        _RPC.Timestamps = null;
                     }
 
                     InitializeRPC();
@@ -384,6 +391,8 @@ public static class Program
                         );
 
                         wasRunning = false;
+                        sessionStartUtc = null;
+                        _RPC.Timestamps = null;
                     }
                 }
 
@@ -403,8 +412,12 @@ public static class Program
     }
 
 
-    static void Main(string[] args)
+    static int Main(string[] args)
     {
+        Logger.Info(
+            $"FLStudioRPC starting with arguments: [{string.Join(", ", args)}]"
+        );
+
         if (
             args.Any(
                 argument =>
@@ -416,7 +429,7 @@ public static class Program
             )
         )
         {
-            SettingsWindow.Run(
+            return SettingsWindow.Run(
                 args.Any(
                     argument =>
                         string.Equals(
@@ -426,7 +439,6 @@ public static class Program
                         )
                 )
             );
-            return;
         }
 
         bool createdNew;
@@ -445,7 +457,7 @@ public static class Program
                 "FL Studio Discord RPC is already running."
             );
 
-            return;
+            return 0;
         }
 
         SetupTray();
@@ -454,21 +466,13 @@ public static class Program
 
         if (!ConfigValues.HasCompletedInitialSetup)
         {
-            if (ShowSettingsOnStartup)
-            {
-                SettingsWindow.Launch(
-                    firstRun: true
-                );
-            }
-            else
-            {
-                ConfigValues.HasCompletedInitialSetup =
-                    true;
-
-                ConfigSettings.SaveCurrentConfig(
-                    ConfigPath
-                );
-            }
+            SettingsWindow.Launch(
+                firstRun: true
+            );
+        }
+        else if (ShowSettingsOnStartup)
+        {
+            SettingsWindow.Launch();
         }
 
         Thread rpcThread =
@@ -491,5 +495,7 @@ public static class Program
 
         _mutex?.ReleaseMutex();
         _mutex?.Dispose();
+
+        return 0;
     }
 }

@@ -146,6 +146,16 @@ public sealed class LinuxTray : IDisposable
 
     public event Action? QuitRequested;
 
+    public static bool IsStartWithLinuxEnabled()
+    {
+        return DbusMenu.IsAutostartEnabled();
+    }
+
+    public static void SetStartWithLinuxEnabled(bool enabled)
+    {
+        DbusMenu.SetAutostartEnabled(enabled);
+    }
+
     public async Task StartAsync()
     {
         if (_connection != null)
@@ -834,7 +844,7 @@ public sealed class LinuxTray : IDisposable
         private uint _revision =
             1;
 
-        private static bool
+        public static bool
             IsAutostartEnabled()
         {
             return File.Exists(
@@ -842,7 +852,7 @@ public sealed class LinuxTray : IDisposable
             );
         }
 
-        private static void
+        public static void
             SetAutostartEnabled(
                 bool enabled)
         {
