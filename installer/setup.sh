@@ -5,8 +5,7 @@ set -e
 APP_NAME="FLStudioRPC"
 INSTALL_DIR="/opt/flstudio-rpc"
 DESKTOP_FILE="/usr/share/applications/flstudiorpc.desktop"
-ICON_DIR="/usr/share/icons/hicolor/128x128/apps"
-ICON_FILE="$ICON_DIR/flstudio.png"
+ICON_THEME_DIR="/usr/share/icons/hicolor"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
@@ -34,7 +33,7 @@ if [[ "$(uname -m)" != "x86_64" ]]; then
 fi
 
 APP_SOURCE="$SCRIPT_DIR/FLStudioRPC"
-ICON_SOURCE="$SCRIPT_DIR/Icons/hicolor/128x128/apps/flstudio.png"
+ICON_SOURCE_DIR="$SCRIPT_DIR/Icons/hicolor"
 
 if [[ ! -f "$APP_SOURCE" ]]; then
     echo "ERROR: FLStudioRPC executable was not found."
@@ -45,11 +44,11 @@ if [[ ! -f "$APP_SOURCE" ]]; then
     exit 1
 fi
 
-if [[ ! -f "$ICON_SOURCE" ]]; then
+if [[ ! -d "$ICON_SOURCE_DIR" ]]; then
     echo "ERROR: FL Studio icon was not found."
     echo
-    echo "Expected:"
-    echo "  $ICON_SOURCE"
+    echo "Expected icon theme directory:"
+    echo "  $ICON_SOURCE_DIR"
     echo
     exit 1
 fi
@@ -68,11 +67,11 @@ echo "      $INSTALL_DIR/$APP_NAME"
 echo
 echo "[2/5] Installing application icon..."
 
-mkdir -p "$ICON_DIR"
-cp "$ICON_SOURCE" "$ICON_FILE"
-chmod 644 "$ICON_FILE"
+mkdir -p "$ICON_THEME_DIR"
+cp -a "$ICON_SOURCE_DIR/." "$ICON_THEME_DIR/"
+find "$ICON_THEME_DIR" -type f -path '*/apps/flstudio.png' -exec chmod 644 {} +
 
-echo "      $ICON_FILE"
+echo "      Installed all FL Studio icon sizes"
 
 echo
 echo "[3/5] Installing desktop entry..."

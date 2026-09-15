@@ -4,7 +4,7 @@ set -e
 
 INSTALL_DIR="/opt/flstudio-rpc"
 DESKTOP_FILE="/usr/share/applications/flstudiorpc.desktop"
-ICON_FILE="/usr/share/icons/hicolor/128x128/apps/flstudio.png"
+ICON_THEME_DIR="/usr/share/icons/hicolor"
 
 echo
 echo "========================================"
@@ -43,9 +43,12 @@ fi
 echo
 echo "[3/4] Removing application icon..."
 
-if [[ -f "$ICON_FILE" ]]; then
-    rm -f "$ICON_FILE"
-    echo "      Removed $ICON_FILE"
+if [[ -d "$ICON_THEME_DIR" ]]; then
+    find "$ICON_THEME_DIR" \
+        -type f \
+        -path '*/apps/flstudio.png' \
+        -delete
+    echo "      Removed installed FL Studio icon sizes"
 else
     echo "      Application icon not found."
 fi

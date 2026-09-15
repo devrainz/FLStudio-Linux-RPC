@@ -7,40 +7,31 @@ using System.Threading.Tasks;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 using Tmds.DBus;
-
 [DBusInterface("org.kde.StatusNotifierWatcher")]
 public interface IStatusNotifierWatcher : IDBusObject
 {
     Task RegisterStatusNotifierItemAsync(string service);
 }
-
 [DBusInterface("org.kde.StatusNotifierItem")]
 public interface IStatusNotifierItem : IDBusObject
 {
     Task<object> GetAsync(string prop);
-
     Task<IDictionary<string, object>> GetAllAsync();
-
     Task SetAsync(
         string prop,
         object val);
-
     Task<IDisposable> WatchPropertiesAsync(
         Action<PropertyChanges> handler);
-
     Task ActivateAsync(
         int x,
         int y);
-
     Task SecondaryActivateAsync(
         int x,
         int y);
-
     Task ContextMenuAsync(
         int x,
         int y);
 }
-
 [DBusInterface("com.canonical.dbusmenu")]
 public interface IDbusMenu : IDBusObject
 {
@@ -56,7 +47,6 @@ public interface IDbusMenu : IDBusObject
             int parentId,
             int recursionDepth,
             string[] propertyNames);
-
     Task<(
         int id,
         IDictionary<string, object> properties
@@ -64,17 +54,14 @@ public interface IDbusMenu : IDBusObject
         GetGroupPropertiesAsync(
             int[] ids,
             string[] propertyNames);
-
     Task<object> GetPropertyAsync(
         int id,
         string property);
-
     Task EventAsync(
         int id,
         string eventId,
         object data,
         uint timestamp);
-
     Task<int[]> EventGroupAsync(
         (
             int id,
@@ -82,129 +69,93 @@ public interface IDbusMenu : IDBusObject
             object data,
             uint timestamp
         )[] events);
-
     Task<bool> AboutToShowAsync(
         int id);
-
     Task<(
         int[] updatesNeeded,
         int[] idErrors
     )>
         AboutToShowGroupAsync(
             int[] ids);
-
     Task<object> GetAsync(
         string prop);
-
     Task<IDictionary<string, object>>
         GetAllAsync();
-
     Task SetAsync(
         string prop,
         object val);
-
     Task<IDisposable>
         WatchPropertiesAsync(
             Action<PropertyChanges> handler);
-
     Task<IDisposable> WatchLayoutUpdatedAsync(
         Action<(uint revision, int parent)> handler);
 }
-
 public sealed class LinuxTray : IDisposable
 {
     private const string ItemObjectPath =
         "/StatusNotifierItem";
-
     private const string MenuObjectPath =
         "/MenuBar";
-
     private const string WatcherName =
         "org.kde.StatusNotifierWatcher";
-
     private const string WatcherPath =
         "/StatusNotifierWatcher";
-
     private Connection? _connection;
-
     private string? _busName;
-
     private StatusNotifierItem? _item;
-
     private DbusMenu? _menu;
-
     private IStatusNotifierWatcher? _watcherProxy;
-
     private IDisposable? _watcherSubscription;
-
     public event Action? Activated;
-
     public event Action? SecondaryActivated;
-
     public event Action? MenuRequested;
-
     public event Action? QuitRequested;
-
     public async Task StartAsync()
     {
         if (_connection != null)
             return;
-
         try
         {
             Logger.Info(
                 "Initializing Linux StatusNotifier tray..."
             );
-
             _connection =
                 new Connection(
                     Address.Session
                 );
-
             var connectionInfo =
                 await _connection.ConnectAsync();
-
             Logger.Info(
                 "Connected to user D-Bus session"
             );
-
             _busName =
                 connectionInfo.LocalName;
-
             Logger.Info(
                 $"D-Bus unique name: {_busName}"
             );
-
             _item =
                 new StatusNotifierItem(
-                    this
+this
                 );
-
             _menu =
                 new DbusMenu(
                     _connection
                 );
-
             _menu.QuitRequested +=
                 () =>
                     QuitRequested?.Invoke();
-
             await _connection.RegisterObjectAsync(
                 _menu
             );
-
             Logger.Info(
                 $"DbusMenu object registered at {MenuObjectPath}"
             );
-
             await _connection.RegisterObjectAsync(
                 _item
             );
-
             Logger.Info(
                 $"StatusNotifierItem object registered at {ItemObjectPath}"
             );
-
             _watcherProxy =
                 _connection.CreateProxy<
                     IStatusNotifierWatcher
@@ -212,7 +163,6 @@ public sealed class LinuxTray : IDisposable
                     WatcherName,
                     WatcherPath
                 );
-
             _watcherSubscription =
                 await _connection.ResolveServiceOwnerAsync(
                     WatcherName,
@@ -224,13 +174,10 @@ public sealed class LinuxTray : IDisposable
                                 ex
                             )
                 );
-
             Logger.Info(
                 "StatusNotifierWatcher owner monitoring established"
             );
-
             await RegisterItemWithWatcherAsync();
-
             Logger.Info(
                 "Linux StatusNotifier tray started"
             );
@@ -241,11 +188,9 @@ public sealed class LinuxTray : IDisposable
                 "Failed to initialize Linux tray",
                 ex
             );
-
             Dispose();
         }
     }
-
     private void OnWatcherOwnerChanged(
         ServiceOwnerChangedEventArgs e)
     {
@@ -255,7 +200,6 @@ public sealed class LinuxTray : IDisposable
                 $"StatusNotifierWatcher available " +
                 $"(owner: {e.NewOwner}) - registering item"
             );
-
             _ = RegisterItemWithWatcherAsync();
         }
         else
@@ -266,7 +210,6 @@ public sealed class LinuxTray : IDisposable
             );
         }
     }
-
     private async Task RegisterItemWithWatcherAsync()
     {
         if (_watcherProxy == null)
@@ -275,32 +218,26 @@ public sealed class LinuxTray : IDisposable
                 "Cannot register StatusNotifierItem: " +
                 "watcher proxy is null"
             );
-
             return;
         }
-
         if (_busName == null)
         {
             Logger.Error(
                 "Cannot register StatusNotifierItem: " +
                 "D-Bus bus name is null"
             );
-
             return;
         }
-
         try
         {
             Logger.Info(
                 $"Registering StatusNotifierItem " +
                 $"with watcher as {_busName}"
             );
-
             await _watcherProxy
                 .RegisterStatusNotifierItemAsync(
                     _busName
                 );
-
             Logger.Info(
                 "StatusNotifierItem successfully registered: " +
                 $"{_busName}"
@@ -315,33 +252,24 @@ public sealed class LinuxTray : IDisposable
             );
         }
     }
-
     public void Dispose()
     {
         try
         {
             _watcherSubscription?.Dispose();
-
             _watcherSubscription =
                 null;
-
             _watcherProxy =
                 null;
-
             _connection?.Dispose();
-
             _connection =
                 null;
-
             _item =
                 null;
-
             _menu =
                 null;
-
             _busName =
                 null;
-
             Logger.Info(
                 "Linux StatusNotifier tray stopped"
             );
@@ -359,19 +287,16 @@ public sealed class LinuxTray : IDisposable
         IDBusObject
     {
         private readonly LinuxTray _owner;
-
         public StatusNotifierItem(
             LinuxTray owner)
         {
             _owner =
                 owner;
         }
-
         public ObjectPath ObjectPath =>
             new ObjectPath(
                 ItemObjectPath
             );
-
         private static readonly Lazy<
             (int width, int height, byte[] data)[]
         >
@@ -379,20 +304,24 @@ public sealed class LinuxTray : IDisposable
                 new(
                     LoadIcon
                 );
+        private static readonly int[]
+            IconSizes =
+            {
+                16, 22, 24, 32, 48,
+                64, 96, 128, 256, 512
+            };
 
-        private static string?
-            FindIconPath()
+        private static string[]
+            FindIconPaths()
         {
             string home =
                 Environment.GetFolderPath(
                     Environment.SpecialFolder.UserProfile
                 );
-
             string? xdgDataHome =
                 Environment.GetEnvironmentVariable(
                     "XDG_DATA_HOME"
                 );
-
             if (
                 string.IsNullOrWhiteSpace(
                     xdgDataHome
@@ -406,47 +335,29 @@ public sealed class LinuxTray : IDisposable
                         "share"
                     );
             }
-
-            string relativePath =
-                Path.Combine(
-                    "icons",
-                    "hicolor",
-                    "128x128",
-                    "apps",
-                    "flstudio.png"
-                );
-
-            string[] candidates =
+            string[] roots =
             {
-                Path.Combine(
-                    xdgDataHome,
-                    relativePath
-                ),
-
-                Path.Combine(
-                    "/usr/local/share",
-                    relativePath
-                ),
-
-                Path.Combine(
-                    "/usr/share",
-                    relativePath
-                ),
-                Path.Combine(
-                    AppContext.BaseDirectory,
-                    "Icons",
-                    "hicolor",
-                    "128x128",
-                    "apps",
-                    "flstudio.png"
-                )
+                Path.Combine(xdgDataHome, "icons", "hicolor"),
+                Path.Combine("/usr/local/share", "icons", "hicolor"),
+                Path.Combine("/usr/share", "icons", "hicolor"),
+                Path.Combine(AppContext.BaseDirectory, "Icons", "hicolor")
             };
 
-            return candidates.FirstOrDefault(
-                File.Exists
-            );
+            return IconSizes
+                .Select(
+                    size => roots.Select(
+                        root => Path.Combine(
+                            root,
+                            $"{size}x{size}",
+                            "apps",
+                            "flstudio.png"
+                        )
+                    ).FirstOrDefault(File.Exists)
+                )
+                .Where(path => path != null)
+                .Select(path => path!)
+                .ToArray();
         }
-
         private static (
             int width,
             int height,
@@ -456,92 +367,58 @@ public sealed class LinuxTray : IDisposable
         {
             try
             {
-                string? iconPath =
-                    FindIconPath();
-
-                if (iconPath == null)
+                string[] iconPaths =
+                    FindIconPaths();
+                if (iconPaths.Length == 0)
                 {
                     Logger.Error(
                         "Could not find FL Studio tray icon"
                     );
-
                     return Array.Empty<
                         (int, int, byte[])
                     >();
                 }
-
                 Logger.Info(
-                    $"Using tray icon: {iconPath}"
+                    "Using tray icons: " +
+                    string.Join(", ", iconPaths)
                 );
 
-                using var image =
-                    Image.Load<Rgba32>(
-                        iconPath
-                    );
+                var pixmaps =
+                    new List<(int width, int height, byte[] data)>();
 
-                int width =
-                    image.Width;
+                foreach (string iconPath in iconPaths)
+                {
+                    using var image =
+                        Image.Load<Rgba32>(iconPath);
 
-                int height =
-                    image.Height;
+                    int width = image.Width;
+                    int height = image.Height;
+                    byte[] data = new byte[width * height * 4];
+                    int index = 0;
 
-                byte[] data =
-                    new byte[
-                        width *
-                        height *
-                        4
-                    ];
-
-                int index =
-                    0;
-
-                image.ProcessPixelRows(
-                    accessor =>
-                    {
-                        for (
-                            int y = 0;
-                            y < accessor.Height;
-                            y++
-                        )
+                    image.ProcessPixelRows(
+                        accessor =>
                         {
-                            var row =
-                                accessor.GetRowSpan(
-                                    y
-                                );
-
-                            for (
-                                int x = 0;
-                                x < row.Length;
-                                x++
-                            )
+                            for (int y = 0; y < accessor.Height; y++)
                             {
-                                var pixel =
-                                    row[x];
+                                var row = accessor.GetRowSpan(y);
 
-                                data[index++] =
-                                    pixel.A;
-
-                                data[index++] =
-                                    pixel.R;
-
-                                data[index++] =
-                                    pixel.G;
-
-                                data[index++] =
-                                    pixel.B;
+                                for (int x = 0; x < row.Length; x++)
+                                {
+                                    var pixel = row[x];
+                                    data[index++] = pixel.A;
+                                    data[index++] = pixel.R;
+                                    data[index++] = pixel.G;
+                                    data[index++] = pixel.B;
+                                }
                             }
                         }
-                    }
-                );
+                    );
 
-                return new[]
-                {
-                    (
-                        width,
-                        height,
-                        data
-                    )
-                };
+                    pixmaps.Add((width, height, data));
+                }
+
+                return pixmaps.ToArray();
             }
             catch (Exception ex)
             {
@@ -550,13 +427,11 @@ public sealed class LinuxTray : IDisposable
                     "for IconPixmap",
                     ex
                 );
-
                 return Array.Empty<
                     (int, int, byte[])
                 >();
             }
         }
-
         private IDictionary<string, object>
             GetAllProperties()
         {
@@ -566,52 +441,42 @@ public sealed class LinuxTray : IDisposable
                     "Category",
                     "ApplicationStatus"
                 },
-
                 {
                     "Id",
                     "FLStudioRPC"
                 },
-
                 {
                     "Title",
                     "FL Studio Discord RPC"
                 },
-
                 {
                     "Status",
                     "Active"
                 },
-
                 {
                     "WindowId",
                     0
                 },
-
                 {
                     "IconName",
                     "flstudio"
                 },
-
                 {
                     "IconPixmap",
                     IconPixmapCache.Value
                 },
-
                 {
                     "AttentionIconName",
                     ""
                 },
-
                 {
                     "AttentionMovieName",
                     ""
                 },
-
                 {
                     "OverlayIconName",
                     ""
                 },
-
                 {
                     "ToolTip",
                     (
@@ -623,12 +488,10 @@ public sealed class LinuxTray : IDisposable
                         ""
                     )
                 },
-
                 {
                     "ItemIsMenu",
                     false
                 },
-
                 {
                     "Menu",
                     new ObjectPath(
@@ -637,14 +500,12 @@ public sealed class LinuxTray : IDisposable
                 }
             };
         }
-
         public Task<object>
             GetAsync(
                 string prop)
         {
             var all =
                 GetAllProperties();
-
             return Task.FromResult(
                 all.TryGetValue(
                     prop,
@@ -654,7 +515,6 @@ public sealed class LinuxTray : IDisposable
                     : null!
             );
         }
-
         public Task<
             IDictionary<string, object>
         >
@@ -664,14 +524,12 @@ public sealed class LinuxTray : IDisposable
                 GetAllProperties()
             );
         }
-
         public Task SetAsync(
             string prop,
             object val)
         {
             return Task.CompletedTask;
         }
-
         public Task<IDisposable>
             WatchPropertiesAsync(
                 Action<PropertyChanges> handler)
@@ -682,7 +540,6 @@ public sealed class LinuxTray : IDisposable
                 new NoopDisposable()
             );
         }
-
         public Task ActivateAsync(
             int x,
             int y)
@@ -690,12 +547,9 @@ public sealed class LinuxTray : IDisposable
             Logger.Info(
                 $"StatusNotifierItem.Activate({x}, {y})"
             );
-
             _owner.Activated?.Invoke();
-
             return Task.CompletedTask;
         }
-
         public Task SecondaryActivateAsync(
             int x,
             int y)
@@ -703,12 +557,9 @@ public sealed class LinuxTray : IDisposable
             Logger.Info(
                 $"StatusNotifierItem.SecondaryActivate({x}, {y})"
             );
-
             _owner.SecondaryActivated?.Invoke();
-
             return Task.CompletedTask;
         }
-
         public Task ContextMenuAsync(
             int x,
             int y)
@@ -716,12 +567,9 @@ public sealed class LinuxTray : IDisposable
             Logger.Info(
                 $"StatusNotifierItem.ContextMenu({x}, {y})"
             );
-
             _owner.MenuRequested?.Invoke();
-
             return Task.CompletedTask;
         }
-
         private sealed class NoopDisposable :
             IDisposable
         {
@@ -730,35 +578,27 @@ public sealed class LinuxTray : IDisposable
             }
         }
     }
-
     private sealed class DbusMenu :
         IDbusMenu,
         IDBusObject
     {
         private readonly Connection _connection;
-
         public DbusMenu(
             Connection connection)
         {
             _connection =
                 connection;
         }
-
         private const int IdSecretMode =
             1;
-
         private const int IdAutostart =
             2;
-
         private const int IdSeparator =
             3;
-
         private const int IdAbout =
             4;
-
         private const int IdExit =
             5;
-
         private static readonly HashSet<int>
             KnownIds =
                 new()
@@ -769,14 +609,11 @@ public sealed class LinuxTray : IDisposable
                     IdAbout,
                     IdExit
                 };
-
         private const string AboutUrl =
             "https://github.com/devrainz/FLStudio-Linux-RPC";
-
         private const string
             InstalledExecutablePath =
                 "/opt/flstudio-rpc/FLStudioRPC";
-
         private static string
             GetXdgConfigHome()
         {
@@ -784,7 +621,6 @@ public sealed class LinuxTray : IDisposable
                 Environment.GetEnvironmentVariable(
                     "XDG_CONFIG_HOME"
                 );
-
             if (
                 !string.IsNullOrWhiteSpace(
                     xdgConfigHome
@@ -793,7 +629,6 @@ public sealed class LinuxTray : IDisposable
             {
                 return xdgConfigHome;
             }
-
             return Path.Combine(
                 Environment.GetFolderPath(
                     Environment.SpecialFolder.UserProfile
@@ -801,7 +636,6 @@ public sealed class LinuxTray : IDisposable
                 ".config"
             );
         }
-
         private static string
             AutostartDesktopPath =>
                 Path.Combine(
@@ -809,11 +643,9 @@ public sealed class LinuxTray : IDisposable
                     "autostart",
                     "flstudiorpc.desktop"
                 );
-
         private static string
             GetAutostartExecutablePath()
         {
-
             if (
                 File.Exists(
                     InstalledExecutablePath
@@ -822,7 +654,6 @@ public sealed class LinuxTray : IDisposable
             {
                 return InstalledExecutablePath;
             }
-
             return Environment.ProcessPath
                 ?? Process.GetCurrentProcess()
                     .MainModule?
@@ -832,34 +663,26 @@ public sealed class LinuxTray : IDisposable
                     "FLStudioRPC"
                 );
         }
-
         public ObjectPath ObjectPath =>
             new ObjectPath(
                 MenuObjectPath
             );
-
         public event Action?
             QuitRequested;
-
         public event Action<(uint revision, int parent)>? LayoutUpdated;
-
         public Task<IDisposable> WatchLayoutUpdatedAsync(
             Action<(uint revision, int parent)> handler)
         {
             LayoutUpdated += handler;
-            
             return Task.FromResult<IDisposable>(
                 new EventUnsubscriber(() => LayoutUpdated -= handler)
             );
         }
-
         private static readonly object[]
             EmptyChildren =
                 Array.Empty<object>();
-
         private uint _revision =
             1;
-
         private static bool
             IsAutostartEnabled()
         {
@@ -867,7 +690,6 @@ public sealed class LinuxTray : IDisposable
                 AutostartDesktopPath
             );
         }
-
         private static void
             SetAutostartEnabled(
                 bool enabled)
@@ -880,7 +702,6 @@ public sealed class LinuxTray : IDisposable
                         Path.GetDirectoryName(
                             AutostartDesktopPath
                         );
-
                     if (
                         !string.IsNullOrEmpty(
                             directory
@@ -891,10 +712,8 @@ public sealed class LinuxTray : IDisposable
                             directory
                         );
                     }
-
                     string exePath =
                         GetAutostartExecutablePath();
-
                     string desktopEntry =
                         "[Desktop Entry]\n" +
                         "Type=Application\n" +
@@ -908,12 +727,10 @@ public sealed class LinuxTray : IDisposable
                         "StartupNotify=false\n" +
                         "Hidden=false\n" +
                         "NoDisplay=false\n";
-
                     File.WriteAllText(
                         AutostartDesktopPath,
                         desktopEntry
                     );
-
                     Logger.Info(
                         "Autostart enabled, wrote " +
                         AutostartDesktopPath
@@ -930,7 +747,6 @@ public sealed class LinuxTray : IDisposable
                         File.Delete(
                             AutostartDesktopPath
                         );
-
                         Logger.Info(
                             "Autostart disabled, removed " +
                             AutostartDesktopPath
@@ -946,7 +762,6 @@ public sealed class LinuxTray : IDisposable
                 );
             }
         }
-
         private (
             int id,
             IDictionary<string, object> properties,
@@ -958,7 +773,6 @@ public sealed class LinuxTray : IDisposable
                 (
                     id:
                         IdSecretMode,
-
                     properties:
                         (IDictionary<string, object>)
                         new Dictionary<string, object>
@@ -968,27 +782,22 @@ public sealed class LinuxTray : IDisposable
                                 "Secret Mode " +
                                 "(Hide Project Name)"
                             },
-
                             {
                                 "enabled",
                                 true
                             },
-
                             {
                                 "visible",
                                 true
                             },
-
                             {
                                 "type",
                                 "standard"
                             },
-
                             {
                                 "toggle-type",
                                 "checkmark"
                             },
-
                             {
                                 "toggle-state",
                                 ConfigValues.SecretMode
@@ -996,16 +805,13 @@ public sealed class LinuxTray : IDisposable
                                     : 0
                             }
                         },
-
                     children:
                         EmptyChildren
                 );
-
             var autostart =
                 (
                     id:
                         IdAutostart,
-
                     properties:
                         (IDictionary<string, object>)
                         new Dictionary<string, object>
@@ -1014,27 +820,22 @@ public sealed class LinuxTray : IDisposable
                                 "label",
                                 "Start with Linux"
                             },
-
                             {
                                 "enabled",
                                 true
                             },
-
                             {
                                 "visible",
                                 true
                             },
-
                             {
                                 "type",
                                 "standard"
                             },
-
                             {
                                 "toggle-type",
                                 "checkmark"
                             },
-
                             {
                                 "toggle-state",
                                 IsAutostartEnabled()
@@ -1042,16 +843,13 @@ public sealed class LinuxTray : IDisposable
                                     : 0
                             }
                         },
-
                     children:
                         EmptyChildren
                 );
-
             var separator =
                 (
                     id:
                         IdSeparator,
-
                     properties:
                         (IDictionary<string, object>)
                         new Dictionary<string, object>
@@ -1060,22 +858,18 @@ public sealed class LinuxTray : IDisposable
                                 "type",
                                 "separator"
                             },
-
                             {
                                 "visible",
                                 true
                             }
                         },
-
                     children:
                         EmptyChildren
                 );
-
             var about =
                 (
                     id:
                         IdAbout,
-
                     properties:
                         (IDictionary<string, object>)
                         new Dictionary<string, object>
@@ -1084,32 +878,26 @@ public sealed class LinuxTray : IDisposable
                                 "label",
                                 "About"
                             },
-
                             {
                                 "enabled",
                                 true
                             },
-
                             {
                                 "visible",
                                 true
                             },
-
                             {
                                 "type",
                                 "standard"
                             }
                         },
-
                     children:
                         EmptyChildren
                 );
-
             var exit =
                 (
                     id:
                         IdExit,
-
                     properties:
                         (IDictionary<string, object>)
                         new Dictionary<string, object>
@@ -1118,27 +906,22 @@ public sealed class LinuxTray : IDisposable
                                 "label",
                                 "Exit"
                             },
-
                             {
                                 "enabled",
                                 true
                             },
-
                             {
                                 "visible",
                                 true
                             },
-
                             {
                                 "type",
                                 "standard"
                             }
                         },
-
                     children:
                         EmptyChildren
                 );
-
             var rootProperties =
                 new Dictionary<string, object>
                 {
@@ -1147,7 +930,6 @@ public sealed class LinuxTray : IDisposable
                         "submenu"
                     }
                 };
-
             return
                 (
                     0,
@@ -1162,7 +944,6 @@ public sealed class LinuxTray : IDisposable
                     }
                 );
         }
-
         public Task<(
             uint revision,
             (
@@ -1181,10 +962,8 @@ public sealed class LinuxTray : IDisposable
                 $"parentId={parentId}, " +
                 $"recursionDepth={recursionDepth})"
             );
-
             var layout =
                 BuildLayout();
-
             return Task.FromResult<
                 (
                     uint,
@@ -1201,7 +980,6 @@ public sealed class LinuxTray : IDisposable
                 )
             );
         }
-
         public Task<(
             int id,
             IDictionary<string, object> properties
@@ -1214,14 +992,12 @@ public sealed class LinuxTray : IDisposable
                 "DbusMenu.GetGroupProperties(" +
                 $"ids=[{string.Join(",", ids)}])"
             );
-
             var (
                 _,
                 _,
                 children
             ) =
                 BuildLayout();
-
             var result =
                 new List<
                     (
@@ -1229,7 +1005,6 @@ public sealed class LinuxTray : IDisposable
                         IDictionary<string, object>
                     )
                 >();
-
             foreach (
                 var child in children
             )
@@ -1244,7 +1019,6 @@ public sealed class LinuxTray : IDisposable
                          IDictionary<string, object>,
                          object[])
                     )child;
-
                 if (
                     Array.IndexOf(
                         ids,
@@ -1260,12 +1034,10 @@ public sealed class LinuxTray : IDisposable
                     );
                 }
             }
-
             return Task.FromResult(
                 result.ToArray()
             );
         }
-
         public Task<object>
             GetPropertyAsync(
                 int id,
@@ -1276,14 +1048,12 @@ public sealed class LinuxTray : IDisposable
                 $"id={id}, " +
                 $"property={property})"
             );
-
             var (
                 _,
                 _,
                 children
             ) =
                 BuildLayout();
-
             foreach (
                 var child in children
             )
@@ -1298,7 +1068,6 @@ public sealed class LinuxTray : IDisposable
                          IDictionary<string, object>,
                          object[])
                     )child;
-
                 if (
                     childId == id &&
                     properties.TryGetValue(
@@ -1312,12 +1081,10 @@ public sealed class LinuxTray : IDisposable
                     );
                 }
             }
-
             return Task.FromResult<object>(
                 null!
             );
         }
-
         private void
             HandleClickEvent(
                 int id,
@@ -1332,66 +1099,45 @@ public sealed class LinuxTray : IDisposable
                     "(eventId != 'clicked'): " +
                     eventId
                 );
-
                 return;
             }
-
             switch (id)
             {
                 case IdSecretMode:
-
                     ConfigValues.SecretMode =
                         !ConfigValues.SecretMode;
-
                     ConfigSettings.SaveCurrentConfig(
                         Program.ConfigPath
                     );
-
                     _revision++;
-
                     Logger.Info(
                         "Secret Mode toggled: " +
                         $"{ConfigValues.SecretMode}, " +
                         $"revision={_revision}"
                     );
-
                     LayoutUpdated?.Invoke((_revision, 0));
-
                     break;
-
                 case IdAutostart:
-
                     SetAutostartEnabled(
                         !IsAutostartEnabled()
                     );
-
                     _revision++;
-
                     Logger.Info(
                         "Autostart toggled, " +
                         $"revision={_revision}"
                     );
-
                     LayoutUpdated?.Invoke((_revision, 0));
-
                     break;
-
                 case IdAbout:
-
                     OpenPath(
                         AboutUrl
                     );
-
                     break;
-
                 case IdExit:
-
                     QuitRequested?.Invoke();
-
                     break;
             }
         }
-
         public Task EventAsync(
             int id,
             string eventId,
@@ -1403,15 +1149,12 @@ public sealed class LinuxTray : IDisposable
                 $"id={id}, " +
                 $"eventId={eventId})"
             );
-
             HandleClickEvent(
                 id,
                 eventId
             );
-
             return Task.CompletedTask;
         }
-
         public Task<int[]>
             EventGroupAsync(
                 (
@@ -1425,10 +1168,8 @@ public sealed class LinuxTray : IDisposable
                 "DbusMenu.EventGroup(" +
                 $"count={events.Length})"
             );
-
             var idErrors =
                 new List<int>();
-
             foreach (
                 var (
                     id,
@@ -1443,7 +1184,6 @@ public sealed class LinuxTray : IDisposable
                     $"id={id}, " +
                     $"eventId={eventId}"
                 );
-
                 if (
                     !KnownIds.Contains(
                         id
@@ -1453,21 +1193,17 @@ public sealed class LinuxTray : IDisposable
                     idErrors.Add(
                         id
                     );
-
                     continue;
                 }
-
                 HandleClickEvent(
                     id,
                     eventId
                 );
             }
-
             return Task.FromResult(
                 idErrors.ToArray()
             );
         }
-
         public Task<bool>
             AboutToShowAsync(
                 int id)
@@ -1475,12 +1211,10 @@ public sealed class LinuxTray : IDisposable
             Logger.Info(
                 $"DbusMenu.AboutToShow(id={id})"
             );
-
             return Task.FromResult(
                 true
             );
         }
-
         public Task<(
             int[] updatesNeeded,
             int[] idErrors
@@ -1492,7 +1226,6 @@ public sealed class LinuxTray : IDisposable
                 "DbusMenu.AboutToShowGroup(" +
                 $"ids=[{string.Join(",", ids)}])"
             );
-
             var idErrors =
                 ids
                     .Where(
@@ -1502,7 +1235,6 @@ public sealed class LinuxTray : IDisposable
                             )
                     )
                     .ToArray();
-
             var updatesNeeded =
                 ids
                     .Where(
@@ -1512,7 +1244,6 @@ public sealed class LinuxTray : IDisposable
                             )
                     )
                     .ToArray();
-
             return Task.FromResult(
                 (
                     updatesNeeded,
@@ -1520,14 +1251,12 @@ public sealed class LinuxTray : IDisposable
                 )
             );
         }
-
         public Task<object>
             GetAsync(
                 string prop)
         {
             var all =
                 GetAllPropertiesInternal();
-
             return Task.FromResult(
                 all.TryGetValue(
                     prop,
@@ -1537,7 +1266,6 @@ public sealed class LinuxTray : IDisposable
                     : null!
             );
         }
-
         public Task<
             IDictionary<string, object>
         >
@@ -1547,7 +1275,6 @@ public sealed class LinuxTray : IDisposable
                 GetAllPropertiesInternal()
             );
         }
-
         private IDictionary<string, object>
             GetAllPropertiesInternal()
         {
@@ -1557,31 +1284,26 @@ public sealed class LinuxTray : IDisposable
                     "Version",
                     (uint)3
                 },
-
                 {
                     "TextDirection",
                     "ltr"
                 },
-
                 {
                     "Status",
                     "normal"
                 },
-
                 {
                     "IconThemePath",
                     Array.Empty<string>()
                 }
             };
         }
-
         public Task SetAsync(
             string prop,
             object val)
         {
             return Task.CompletedTask;
         }
-
         public Task<IDisposable>
             WatchPropertiesAsync(
                 Action<PropertyChanges> handler)
@@ -1592,7 +1314,6 @@ public sealed class LinuxTray : IDisposable
                 new NoopDisposable()
             );
         }
-
         private static void
             OpenPath(
                 string path)
@@ -1604,10 +1325,8 @@ public sealed class LinuxTray : IDisposable
                     {
                         FileName =
                             "xdg-open",
-
                         Arguments =
                             $"\"{path}\"",
-
                         UseShellExecute =
                             false
                     }
@@ -1622,7 +1341,6 @@ public sealed class LinuxTray : IDisposable
                 );
             }
         }
-
         private sealed class NoopDisposable :
             IDisposable
         {
@@ -1630,23 +1348,19 @@ public sealed class LinuxTray : IDisposable
             {
             }
         }
-
         private sealed class EventUnsubscriber :
             IDisposable
         {
             private Action? _unsubscribe;
-
             public EventUnsubscriber(
                 Action unsubscribe)
             {
                 _unsubscribe =
                     unsubscribe;
             }
-
             public void Dispose()
             {
                 _unsubscribe?.Invoke();
-
                 _unsubscribe =
                     null;
             }
