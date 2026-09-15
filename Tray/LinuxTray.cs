@@ -106,10 +106,6 @@ public interface IDbusMenu : IDBusObject
     Task<IDisposable>
         WatchPropertiesAsync(
             Action<PropertyChanges> handler);
-
-    /*
-     * Defines the D-Bus signal properly to avoid crashes.
-     */
     Task<IDisposable> WatchLayoutUpdatedAsync(
         Action<(uint revision, int parent)> handler);
 }
@@ -180,22 +176,10 @@ public sealed class LinuxTray : IDisposable
                 $"D-Bus unique name: {_busName}"
             );
 
-            /*
-             * ---------------------------------------------------------
-             * Create StatusNotifierItem
-             * ---------------------------------------------------------
-             */
-
             _item =
                 new StatusNotifierItem(
                     this
                 );
-
-            /*
-             * ---------------------------------------------------------
-             * Create D-Bus menu
-             * ---------------------------------------------------------
-             */
 
             _menu =
                 new DbusMenu(
@@ -206,11 +190,9 @@ public sealed class LinuxTray : IDisposable
                 () =>
                     QuitRequested?.Invoke();
 
-            /*
-             * ---------------------------------------------------------
-             * Register /MenuBar
-             * ---------------------------------------------------------
-             */
+            _menu.SettingsRequested +=
+                () =>
+                    SettingsRequested?.Invoke();
 
             await _connection.RegisterObjectAsync(
                 _menu
@@ -220,12 +202,6 @@ public sealed class LinuxTray : IDisposable
                 $"DbusMenu object registered at {MenuObjectPath}"
             );
 
-            /*
-             * ---------------------------------------------------------
-             * Register /StatusNotifierItem
-             * ---------------------------------------------------------
-             */
-
             await _connection.RegisterObjectAsync(
                 _item
             );
@@ -234,12 +210,6 @@ public sealed class LinuxTray : IDisposable
                 $"StatusNotifierItem object registered at {ItemObjectPath}"
             );
 
-            /*
-             * ---------------------------------------------------------
-             * Create watcher proxy
-             * ---------------------------------------------------------
-             */
-
             _watcherProxy =
                 _connection.CreateProxy<
                     IStatusNotifierWatcher
@@ -247,12 +217,6 @@ public sealed class LinuxTray : IDisposable
                     WatcherName,
                     WatcherPath
                 );
-
-            /*
-             * ---------------------------------------------------------
-             * Watch for Waybar restarting
-             * ---------------------------------------------------------
-             */
 
             _watcherSubscription =
                 await _connection.ResolveServiceOwnerAsync(
@@ -269,12 +233,6 @@ public sealed class LinuxTray : IDisposable
             Logger.Info(
                 "StatusNotifierWatcher owner monitoring established"
             );
-
-            /*
-             * ---------------------------------------------------------
-             * Register immediately if Waybar is already running.
-             * ---------------------------------------------------------
-             */
 
             await RegisterItemWithWatcherAsync();
 
@@ -401,12 +359,6 @@ public sealed class LinuxTray : IDisposable
             );
         }
     }
-
-    /*
-     * =================================================================
-     * STATUS NOTIFIER ITEM
-     * =================================================================
-     */
 
     private sealed class StatusNotifierItem :
         IStatusNotifierItem,
@@ -745,12 +697,6 @@ public sealed class LinuxTray : IDisposable
         }
     }
 
-    /*
-     * =================================================================
-     * DBUS MENU
-     * =================================================================
-     */
-
     private sealed class DbusMenu :
         IDbusMenu,
         IDBusObject
@@ -837,10 +783,7 @@ public sealed class LinuxTray : IDisposable
         private static string
             GetAutostartExecutablePath()
         {
-            /*
-             * Prefer the installed release so a development build cannot
-             * create an autostart entry pointing into the Git repository.
-             */
+
             if (
                 File.Exists(
                     InstalledExecutablePath
@@ -850,9 +793,6 @@ public sealed class LinuxTray : IDisposable
                 return InstalledExecutablePath;
             }
 
-            /*
-             * Development / portable fallback.
-             */
             return Environment.ProcessPath
                 ?? Process.GetCurrentProcess()
                     .MainModule?
@@ -1706,10 +1646,6 @@ public sealed class LinuxTray : IDisposable
             }
         }
 
-        /*
-         * Correctly unhooks the handler from the layout event
-         * when the D-Bus subscription is closed.
-         */
         private sealed class EventUnsubscriber :
             IDisposable
         {
