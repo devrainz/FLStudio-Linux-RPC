@@ -755,6 +755,10 @@ public sealed class LinuxTray : IDisposable
 
         private const string
             InstalledExecutablePath =
+                "/usr/bin/flstudiorpc";
+
+        private const string
+            LegacyInstalledExecutablePath =
                 "/opt/flstudio-rpc/FLStudioRPC";
 
         private static string
@@ -847,9 +851,49 @@ public sealed class LinuxTray : IDisposable
         public static bool
             IsAutostartEnabled()
         {
-            return File.Exists(
-                AutostartDesktopPath
-            );
+            if (
+                !File.Exists(
+                    AutostartDesktopPath
+                )
+            )
+            {
+                return false;
+            }
+
+            try
+            {
+
+                if (
+                    File.Exists(
+                        InstalledExecutablePath
+                    )
+                )
+                {
+                    string desktopEntry =
+                        File.ReadAllText(
+                            AutostartDesktopPath
+                        );
+
+                    if (
+                        desktopEntry.Contains(
+                            LegacyInstalledExecutablePath,
+                            StringComparison.Ordinal
+                        )
+                    )
+                    {
+                        SetAutostartEnabled(true);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.Error(
+                    "Failed to migrate legacy autostart entry",
+                    ex
+                );
+            }
+
+            return true;
         }
 
         public static void
