@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=FL Studio Discord RPC
+Comment=Discord Rich Presence for FL Studio on Linux
+Exec=flstudiorpc
+TryExec=/usr/bin/flstudiorpc
+Icon=flstudio
+Terminal=false
+Categories=AudioVideo;Audio;Utility;
+StartupNotify=false
+Keywords=FL Studio;Discord;RPC;Rich Presence;Wine;Proton;

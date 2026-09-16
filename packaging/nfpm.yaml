@@ -1,0 +1,107 @@
+name: flstudiorpc
+arch: amd64
+platform: linux
+version: ${VERSION}
+version_schema: semver
+release: "1"
+section: utils
+priority: optional
+maintainer: devrainz <devrainz@users.noreply.github.com>
+vendor: devrainz
+homepage: https://github.com/devrainz/FLStudio-Linux-RPC
+license: MIT
+description: |
+  Native Linux Discord Rich Presence integration for FL Studio.
+  Detects FL Studio running through Wine/Proton and exposes the current
+  session through Discord Rich Presence, with tray and XDG autostart support.
+
+contents:
+  - src: publish/linux-x64/FLStudioRPC
+    dst: /usr/bin/flstudiorpc
+    file_info:
+      mode: 0755
+
+  - src: packaging/flstudiorpc.desktop
+    dst: /usr/share/applications/flstudiorpc.desktop
+    file_info:
+      mode: 0644
+
+  - src: Icons/hicolor/16x16/apps/flstudio.png
+    dst: /usr/share/icons/hicolor/16x16/apps/flstudio.png
+  - src: Icons/hicolor/22x22/apps/flstudio.png
+    dst: /usr/share/icons/hicolor/22x22/apps/flstudio.png
+  - src: Icons/hicolor/24x24/apps/flstudio.png
+    dst: /usr/share/icons/hicolor/24x24/apps/flstudio.png
+  - src: Icons/hicolor/32x32/apps/flstudio.png
+    dst: /usr/share/icons/hicolor/32x32/apps/flstudio.png
+  - src: Icons/hicolor/48x48/apps/flstudio.png
+    dst: /usr/share/icons/hicolor/48x48/apps/flstudio.png
+  - src: Icons/hicolor/64x64/apps/flstudio.png
+    dst: /usr/share/icons/hicolor/64x64/apps/flstudio.png
+  - src: Icons/hicolor/96x96/apps/flstudio.png
+    dst: /usr/share/icons/hicolor/96x96/apps/flstudio.png
+  - src: Icons/hicolor/128x128/apps/flstudio.png
+    dst: /usr/share/icons/hicolor/128x128/apps/flstudio.png
+  - src: Icons/hicolor/256x256/apps/flstudio.png
+    dst: /usr/share/icons/hicolor/256x256/apps/flstudio.png
+  - src: Icons/hicolor/512x512/apps/flstudio.png
+    dst: /usr/share/icons/hicolor/512x512/apps/flstudio.png
+
+  - src: LICENSE
+    dst: /usr/share/licenses/flstudiorpc/LICENSE
+    file_info:
+      mode: 0644
+
+scripts:
+  postinstall: packaging/scripts/postinstall.sh
+  postremove: packaging/scripts/postremove.sh
+
+overrides:
+  deb:
+    depends:
+      - ca-certificates
+      - libc6
+      - libgcc-s1
+      - libgssapi-krb5-2
+      - libicu72 | libicu74 | libicu76 | libicu78
+      - libssl3 | libssl3t64
+      - libstdc++6
+      - tzdata
+      - zlib1g
+      - libgtk-4-1
+      - libadwaita-1-0
+      - hicolor-icon-theme
+  rpm:
+    depends:
+      - glibc
+      - libgcc
+      - ca-certificates
+      - openssl-libs
+      - libstdc++
+      - libicu
+      - tzdata
+      - krb5-libs
+      - zlib
+      - gtk4
+      - libadwaita
+      - hicolor-icon-theme
+  archlinux:
+    depends:
+      - glibc
+      - gcc-libs
+      - ca-certificates
+      - openssl
+      - icu
+      - tzdata
+      - krb5
+      - zlib
+      - gtk4
+      - libadwaita
+      - hicolor-icon-theme
+
+rpm:
+  compression: zstd
+
+archlinux:
+  pkgbase: flstudiorpc
+  packager: devrainz

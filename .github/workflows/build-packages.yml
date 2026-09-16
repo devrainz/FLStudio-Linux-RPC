@@ -1,0 +1,43 @@
+name: Build Linux Packages
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Package version (for example 1.2.0 or 1.2.0-beta.1)"
+        required: true
+        default: "0.0.0-dev"
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build .deb, .rpm and Arch package
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Build distro packages
+        shell: bash
+        run: ./packaging/build-packages.sh "${{ inputs.version }}"
+
+      - name: Upload packages
+        uses: actions/upload-artifact@v7
+        with:
+          name: flstudiorpc-packages-${{ inputs.version }}
+          path: |
+            dist/*.deb
+            dist/*.rpm
+            dist/*.pkg.tar.zst
+            dist/SHA256SUMS
+          if-no-files-found: error
+          retention-days: 14
