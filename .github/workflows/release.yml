@@ -14,7 +14,7 @@ on:
           - major
 
       release_notes:
-        description: "Custom release notes (optional)"
+        description: "Custom release notes (optional; commit titles are used when empty)"
         required: false
         type: string
 
@@ -22,43 +22,37 @@ permissions:
   contents: write
 
 jobs:
-  release:
+  version:
+    name: Calculate release version
     runs-on: ubuntu-latest
+    outputs:
+      previous_tag: ${{ steps.version.outputs.previous_tag }}
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
-      - name: Setup .NET 8
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: "8.0.x"
-
-      - name: Get latest tag
-        id: get_tag
-        shell: bash
-        run: |
-          latest_tag=$(git tag --sort=-v:refname | head -n 1)
-
-          if [[ -z "$latest_tag" ]]; then
-            latest_tag="v1.0.0"
-          fi
-
-          echo "Latest tag: $latest_tag"
-          echo "current_tag=$latest_tag" >> "$GITHUB_OUTPUT"
-
-      - name: Calculate new version
-        id: new_version
+      - name: Calculate version
+        id: version
         shell: bash
         env:
-          CURRENT_TAG: ${{ steps.get_tag.outputs.current_tag }}
-          VERSION_BUMP: ${{ github.event.inputs.version_bump }}
+          VERSION_BUMP: ${{ inputs.version_bump }}
         run: |
-          version="${CURRENT_TAG#v}"
+          set -euo pipefail
 
-          IFS='.' read -r major minor patch <<< "$version"
+          previous_tag="$(git tag --sort=-v:refname | head -n 1 || true)"
+
+          if [[ -n "$previous_tag" ]]; then
+            current="${previous_tag#v}"
+          else
+            current="0.0.0"
+          fi
+
+          IFS='.' read -r major minor patch <<< "$current"
 
           case "$VERSION_BUMP" in
             major)
@@ -73,143 +67,161 @@ jobs:
             patch)
               patch=$((patch + 1))
               ;;
+            *)
+              echo "Unknown version bump: $VERSION_BUMP" >&2
+              exit 1
+              ;;
           esac
 
-          new_version="$major.$minor.$patch"
-          new_tag="v$new_version"
+          version="$major.$minor.$patch"
+          tag="v$version"
 
-          echo "New version: $new_version"
-          echo "New tag: $new_tag"
-
-          echo "new_tag=$new_tag" >> "$GITHUB_OUTPUT"
-          echo "new_version=$new_version" >> "$GITHUB_OUTPUT"
-
-      - name: Restore dependencies
-        run: dotnet restore
-
-      - name: Publish Linux x64 application
-        run: |
-          dotnet publish FLStudioRPC.csproj \
-            --configuration Release \
-            --runtime linux-x64 \
-            --self-contained true \
-            --output publish/linux-x64 \
-            /p:PublishSingleFile=true \
-            /p:IncludeNativeLibrariesForSelfExtract=true
-
-      - name: Prepare release package
-        shell: bash
-        env:
-          VERSION: ${{ steps.new_version.outputs.new_version }}
-        run: |
-          PACKAGE_DIR="release/FLStudioRPC-linux-x64"
-          ARCHIVE="FLStudioRPC-linux-x64-v${VERSION}.tar.gz"
-
-          rm -rf release
-          mkdir -p "$PACKAGE_DIR"
-
-          cp publish/linux-x64/FLStudioRPC "$PACKAGE_DIR/FLStudioRPC"
-
-          cp -a Icons "$PACKAGE_DIR/Icons"
-
-          cp installer/setup.sh "$PACKAGE_DIR/setup.sh"
-          cp installer/uninstall.sh "$PACKAGE_DIR/uninstall.sh"
-
-          chmod +x \
-            "$PACKAGE_DIR/FLStudioRPC" \
-            "$PACKAGE_DIR/setup.sh" \
-            "$PACKAGE_DIR/uninstall.sh"
-
-          tar -czf "release/$ARCHIVE" \
-            -C release \
-            "FLStudioRPC-linux-x64"
-
-          echo "Created package:"
-          ls -lh "release/$ARCHIVE"
-
-      - name: Verify release package
-        shell: bash
-        run: |
-          PACKAGE="release/FLStudioRPC-linux-x64"
-
-          test -f "$PACKAGE/FLStudioRPC"
-          test -f "$PACKAGE/setup.sh"
-          test -f "$PACKAGE/uninstall.sh"
-          test -f "$PACKAGE/Icons/hicolor/128x128/apps/flstudio.png"
-
-          echo "Release package contents:"
-          find "$PACKAGE" -type f -print
-
-      - name: Create release notes
-        id: release_notes
-        shell: bash
-        env:
-          CUSTOM_NOTES: ${{ github.event.inputs.release_notes }}
-          NEW_TAG: ${{ steps.new_version.outputs.new_tag }}
-          REPOSITORY: ${{ github.repository }}
-        run: |
-          if [[ -n "$CUSTOM_NOTES" ]]; then
-            notes="$CUSTOM_NOTES"
-          else
-            notes="See the [commit history](https://github.com/$REPOSITORY/commits/$NEW_TAG) for detailed changes."
+          if git rev-parse "$tag" >/dev/null 2>&1; then
+            echo "Tag $tag already exists." >&2
+            exit 1
           fi
 
-          {
-            echo "notes<<EOF"
-            echo "$notes"
-            echo "EOF"
-          } >> "$GITHUB_OUTPUT"
+          echo "Previous tag: ${previous_tag:-none}"
+          echo "New version: $version"
+          echo "New tag: $tag"
+
+          echo "previous_tag=$previous_tag" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+  release:
+    name: Build and publish release
+    needs: version
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Build release packages
+        shell: bash
+        run: ./packaging/build-packages.sh "${{ needs.version.outputs.version }}"
+
+      - name: Create release notes
+        shell: bash
+        env:
+          CUSTOM_NOTES: ${{ inputs.release_notes }}
+          PREVIOUS_TAG: ${{ needs.version.outputs.previous_tag }}
+          NEW_TAG: ${{ needs.version.outputs.tag }}
+          VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          set -euo pipefail
+
+          if [[ -n "$CUSTOM_NOTES" ]]; then
+            changes="$CUSTOM_NOTES"
+          elif [[ -n "$PREVIOUS_TAG" ]] && git rev-parse "$PREVIOUS_TAG" >/dev/null 2>&1; then
+            changes="$(git log --no-merges --pretty='format:- %s (`%h`)' "$PREVIOUS_TAG..$GITHUB_SHA")"
+          else
+            changes="$(git log --no-merges --pretty='format:- %s (`%h`)' "$GITHUB_SHA" -n 20)"
+          fi
+
+          if [[ -z "$changes" ]]; then
+            changes="- Package/release refresh."
+          fi
+
+          cat > release-notes.md <<EOF_NOTES
+          ## FL Studio Discord RPC ${NEW_TAG}
+
+          Native Linux x86-64 packages. Installation and removal are handled by your distro package manager; `setup.sh` and `uninstall.sh` are no longer required.
+
+          ### Install
+
+          **Debian / Ubuntu / Linux Mint**
+
+          \`\`\`bash
+          sudo apt install ./flstudiorpc_${VERSION}_amd64.deb
+          \`\`\`
+
+          **Fedora / RHEL-family**
+
+          \`\`\`bash
+          sudo dnf install ./flstudiorpc-${VERSION}-1.x86_64.rpm
+          \`\`\`
+
+          **Arch Linux / CachyOS / EndeavourOS**
+
+          \`\`\`bash
+          sudo pacman -U ./flstudiorpc-${VERSION}-1-x86_64.pkg.tar.zst
+          \`\`\`
+
+          ### Uninstall
+
+          \`\`\`bash
+          # Debian / Ubuntu / Mint
+          sudo apt remove flstudiorpc
+
+          # Fedora / RHEL-family
+          sudo dnf remove flstudiorpc
+
+          # Arch Linux / CachyOS / EndeavourOS
+          sudo pacman -Rns flstudiorpc
+          \`\`\`
+
+          The package manager owns and removes the executable, application-menu entry, installed icons, and license file. Per-user preferences under \`~/.config\` are intentionally preserved.
+
+          ### What's Changed
+
+          ${changes}
+
+          ### Files
+
+          - \`.deb\` for Debian, Ubuntu, Linux Mint and derivatives
+          - \`.rpm\` for Fedora/RHEL-family distributions
+          - \`.pkg.tar.zst\` for Arch Linux and derivatives
+          - \`SHA256SUMS\` for artifact verification
+          EOF_NOTES
+
+          cat release-notes.md
+
+      - name: Verify release assets
+        shell: bash
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          test -s "dist/flstudiorpc_${VERSION}_amd64.deb"
+          test -s "dist/flstudiorpc-${VERSION}-1.x86_64.rpm"
+          test -s "dist/flstudiorpc-${VERSION}-1-x86_64.pkg.tar.zst"
+          test -s "dist/SHA256SUMS"
+          ls -lh dist
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
-          tag_name: ${{ steps.new_version.outputs.new_tag }}
-          name: FL Studio Discord RPC ${{ steps.new_version.outputs.new_tag }}
-          body: |
-            ## FL Studio Discord RPC ${{ steps.new_version.outputs.new_tag }}
-
-            Linux x86-64 release.
-
-            ### Installation
-
-            1. Download `FLStudioRPC-linux-x64-v${{ steps.new_version.outputs.new_version }}.tar.gz`
-            2. Extract the archive.
-            3. Enter the extracted `FLStudioRPC-linux-x64` directory.
-            4. Run:
-
-               ```bash
-               sudo ./setup.sh
-               ```
-
-            5. The application will be available from your application menu.
-
-            ### Uninstallation
-
-            Extract the same archive and run:
-
-            ```bash
-            sudo ./uninstall.sh
-            ```
-
-            ### What's Changed
-
-            ${{ steps.release_notes.outputs.notes }}
-
-            ---
-
-            Generated automatically with GitHub Actions.
-          files: release/FLStudioRPC-linux-x64-v${{ steps.new_version.outputs.new_version }}.tar.gz
+          tag_name: ${{ needs.version.outputs.tag }}
+          target_commitish: ${{ github.sha }}
+          name: FL Studio Discord RPC ${{ needs.version.outputs.tag }}
+          body_path: release-notes.md
+          files: |
+            dist/*.deb
+            dist/*.rpm
+            dist/*.pkg.tar.zst
+            dist/SHA256SUMS
+          fail_on_unmatched_files: true
           draft: false
           prerelease: false
+          make_latest: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Release Summary
+      - name: Release summary
         shell: bash
         run: |
-          echo "Release created successfully!"
-          echo
-          echo "Version: ${{ steps.new_version.outputs.new_tag }}"
-          echo "Previous: ${{ steps.get_tag.outputs.current_tag }}"
-          echo
-          echo "https://github.com/${{ github.repository }}/releases/tag/${{ steps.new_version.outputs.new_tag }}"
+          echo "### Release created" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Version: **${{ needs.version.outputs.tag }}**" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Previous: **${{ needs.version.outputs.previous_tag || 'none' }}**" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Packages: DEB, RPM, Arch Linux" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Release: https://github.com/${{ github.repository }}/releases/tag/${{ needs.version.outputs.tag }}" >> "$GITHUB_STEP_SUMMARY"
