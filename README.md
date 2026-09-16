@@ -89,42 +89,58 @@ System tray behavior may vary depending on your desktop environment, panel, or s
 
 ## Installation
 
-### From a Release
+Official releases are distributed as native Linux packages instead of a custom `setup.sh` installer.
 
-Download the latest Linux release from the [Releases](https://github.com/devrainz/FLStudio-Linux-RPC/releases) page.
+Download the package for your distribution from the [Releases](https://github.com/devrainz/FLStudio-Linux-RPC/releases) page.
 
-Download the archive:
-
-```text
-FLStudioRPC-linux-x64-vX.X.X.tar.gz
-```
-
-Extract it:
+### Debian / Ubuntu / Linux Mint
 
 ```bash
-tar -xzf FLStudioRPC-linux-x64-vX.X.X.tar.gz
-cd FLStudioRPC-linux-x64
+sudo apt install ./flstudiorpc_X.X.X_amd64.deb
 ```
 
-Run the installer:
+### Fedora / RHEL-family
 
 ```bash
-sudo ./setup.sh
+sudo dnf install ./flstudiorpc-X.X.X-1.x86_64.rpm
 ```
 
-The installer will:
-
-1. Install the application to `/opt/flstudio-rpc`
-2. Install the application icon into the system icon theme
-3. Create a desktop application entry
-4. Update the desktop application database when available
-
-After installation, **FL Studio Discord RPC** should appear in your desktop environment's application menu.
-
-You can launch it from there, or run:
+### Arch Linux / CachyOS / EndeavourOS
 
 ```bash
-/opt/flstudio-rpc/FLStudioRPC
+sudo pacman -U ./flstudiorpc-X.X.X-1-x86_64.pkg.tar.zst
+```
+
+The package manager installs and owns:
+
+* `/usr/bin/flstudiorpc`
+* `/usr/share/applications/flstudiorpc.desktop`
+* FL Studio RPC icons under `/usr/share/icons/hicolor/`
+* The packaged license file
+
+Required GTK4/libadwaita dependencies are declared by the package for each supported package format.
+
+After installation, **FL Studio Discord RPC** should appear in your application menu. You can also launch it directly with:
+
+```bash
+flstudiorpc
+```
+
+### Migrating From the Old `setup.sh` Installer
+
+Installing one of the new distro packages automatically removes the legacy `/opt/flstudio-rpc` application directory. Existing **Start with Linux** entries that still reference the old `/opt` executable are migrated by the application the next time it starts.
+
+Older versions of `setup.sh` also copied the project's custom `Icons/hicolor/index.theme` over the distro-owned hicolor theme file. The new packages never own or replace that file. If package installation prints a warning about the legacy hicolor theme, restore it once with your distro package manager:
+
+```bash
+# Debian / Ubuntu / Linux Mint
+sudo apt install --reinstall hicolor-icon-theme
+
+# Fedora
+sudo dnf reinstall hicolor-icon-theme
+
+# Arch Linux / CachyOS / EndeavourOS
+sudo pacman -S hicolor-icon-theme
 ```
 
 ## Usage
@@ -157,7 +173,7 @@ When enabled, FL Studio Discord RPC creates an XDG `.desktop` autostart entry fo
 The entry points to:
 
 ```text
-/opt/flstudio-rpc/FLStudioRPC
+/usr/bin/flstudiorpc
 ```
 
 The autostart directory follows `XDG_CONFIG_HOME`.
@@ -225,24 +241,29 @@ The configuration controls application behavior such as Discord Rich Presence se
 
 ## Uninstallation
 
-If you installed the application using `setup.sh`, use the included uninstaller.
+Remove the application through the same package manager used to install it.
 
-From the extracted release directory:
+### Debian / Ubuntu / Linux Mint
 
 ```bash
-sudo ./uninstall.sh
+sudo apt remove flstudiorpc
 ```
 
-The uninstaller removes:
+### Fedora / RHEL-family
 
-* `/opt/flstudio-rpc`
-* `/usr/share/applications/flstudiorpc.desktop`
-* Installed application resources
-* Installed application icons
+```bash
+sudo dnf remove flstudiorpc
+```
 
-The desktop application database is also updated when the required utility is available.
+### Arch Linux / CachyOS / EndeavourOS
 
-User configuration and autostart settings may remain in the user's configuration directory unless explicitly removed by the application or uninstaller.
+```bash
+sudo pacman -Rns flstudiorpc
+```
+
+The package manager removes the installed executable, application-menu entry, icons, and other package-owned files automatically.
+
+Per-user configuration and preferences under `~/.config` are intentionally preserved. If **Start with Linux** was enabled, its user-owned XDG autostart entry may remain, but it contains `TryExec=/usr/bin/flstudiorpc`, so desktop environments will ignore it once the package is removed. Disable **Start with Linux** before uninstalling if you also want that user file removed automatically by the application.
 
 ## Building From Source
 
@@ -297,43 +318,26 @@ The resulting executable will be:
 publish/linux-x64/FLStudioRPC
 ```
 
-### Creating a Release Package
+### Creating Distribution Packages
 
-Official releases contain:
+Packaging is handled by [nFPM](https://nfpm.goreleaser.com/) using `packaging/nfpm.yaml`. Both GitHub Actions workflows call the same `packaging/build-packages.sh` script, so local package builds and release builds use the same logic.
+
+The **Build Linux Packages** workflow publishes three x86-64 package formats from the same self-contained .NET build:
 
 ```text
-FLStudioRPC-linux-x64/
-├── FLStudioRPC
-├── setup.sh
-├── uninstall.sh
-└── Icons/
-    └── hicolor/
-        ├── 128x128/
-        │   └── apps/
-        │       └── flstudio.png
-        └── index.theme
+flstudiorpc_X.X.X_amd64.deb
+flstudiorpc-X.X.X-1.x86_64.rpm
+flstudiorpc-X.X.X-1-x86_64.pkg.tar.zst
+SHA256SUMS
 ```
 
-The GitHub Actions release workflow automatically builds and packages the application.
+You can run it manually through:
 
-Releases can be created through:
+**GitHub → Actions → Build Linux Packages → Run workflow**
 
-**GitHub → Actions → Create Linux Release → Run workflow**
+The **Create Linux Release** workflow calculates the next semantic version, builds the same three packages, generates release notes, and publishes them in a GitHub Release.
 
-The workflow supports:
-
-* Patch releases
-* Minor releases
-* Major releases
-* Custom release notes
-
-It automatically:
-
-1. Builds the Linux x86-64 application
-2. Creates a self-contained release
-3. Packages the required application files
-4. Creates a versioned `.tar.gz` archive
-5. Publishes the archive as a GitHub Release
+No `setup.sh` or `uninstall.sh` is included. Installation, upgrades, file ownership, and removal are handled by `apt`/`dpkg`, `dnf`/RPM, or `pacman`.
 
 ## Project Structure
 
@@ -349,11 +353,16 @@ FLStudio-Linux-RPC/
 │   └── Utils.cs
 ├── Tray/
 │   └── LinuxTray.cs
-├── installer/
-│   ├── setup.sh
-│   └── uninstall.sh
+├── packaging/
+│   ├── build-packages.sh
+│   ├── flstudiorpc.desktop
+│   ├── nfpm.yaml
+│   └── scripts/
+│       ├── postinstall.sh
+│       └── postremove.sh
 ├── .github/
 │   └── workflows/
+│       ├── build-packages.yml
 │       └── release.yml
 ├── FLStudioRPC.csproj
 ├── Program.cs
