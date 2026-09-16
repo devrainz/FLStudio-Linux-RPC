@@ -356,10 +356,7 @@ public static class Utils
                 }
                 catch
                 {
-                    /*
-                     * A process can disappear while /proc is being read.
-                     * Continue checking other matching processes.
-                     */
+
                 }
             }
         }
@@ -519,11 +516,6 @@ public static class Utils
                     return title;
                 }
 
-                /*
-                 * Only windows whose WM_CLASS belongs to FL Studio reach this
-                 * point, so an FL-owned dialog can safely be used as a
-                 * fallback. The main window remains preferred.
-                 */
                 if (
                     !string.IsNullOrWhiteSpace(title)
                     &&
@@ -564,10 +556,6 @@ public static class Utils
         FLInfo info =
             new FLInfo();
 
-        /*
-         * The Linux process check is authoritative. Never retain a stale
-         * window title or Discord presence after FL Studio has closed.
-         */
         if (!IsFLStudioRunning())
         {
             _lastWindowTitle = null;
@@ -588,9 +576,6 @@ public static class Utils
                 fullTitle
             );
 
-        /*
-         * Prefer the version shown by FL Studio itself.
-         */
         if (!string.IsNullOrWhiteSpace(version))
         {
             if (
@@ -617,11 +602,7 @@ public static class Utils
             DateTime.UtcNow >= _nextVersionLookupUtc
         )
         {
-            /*
-             * Some FL Studio versions only expose "FL Studio" in the window
-             * title. In that case, inspect the Wine/Bottles process path.
-             * Retry every 30 seconds until a version can be found.
-             */
+
             _nextVersionLookupUtc =
                 DateTime.UtcNow.AddSeconds(30);
 
