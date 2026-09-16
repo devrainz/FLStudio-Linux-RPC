@@ -17,7 +17,7 @@
   <img alt="Architecture" src="https://img.shields.io/badge/architecture-x86--64-blue">
   <img alt=".NET" src="https://img.shields.io/badge/.NET-8.0-512BD4">
   <img alt="Runtime" src="https://img.shields.io/badge/runtime-self--contained-brightgreen">
-  <img alt="Status" src="https://img.shields.io/badge/status-v1.0.2-brightgreen">
+  <img alt="Status" src="https://img.shields.io/badge/status-v1.3.0-brightgreen">
   <img alt="License" src="https://img.shields.io/badge/license-MIT-green">
 </p>
 
@@ -74,8 +74,11 @@ Official releases are published as **self-contained .NET 8 applications**, so in
 For building from source, you will need:
 
 * .NET 8 SDK
-* A Linux x86-64 system
+* GNU Make
 * Git
+* A Linux system supported by the .NET runtime and the native GTK/libadwaita dependencies used by the application
+
+Official pre-built releases currently target Linux x86-64. Other architectures may be buildable from source, but are not officially tested.
 
 ### Desktop Integration
 
@@ -92,6 +95,9 @@ System tray behavior may vary depending on your desktop environment, panel, or s
 Official releases are distributed as native Linux packages instead of a custom `setup.sh` installer.
 
 Download the package for your distribution from the [Releases](https://github.com/devrainz/FLStudio-Linux-RPC/releases) page.
+
+> [!TIP]
+> The native packages are the recommended installation method. If none of the provided package formats fit your distribution or you need a custom build, you can compile FL Studio Linux RPC directly from source. See [Building From Source](#building-from-source) or [`BUILDING.md`](BUILDING.md).
 
 ### Debian / Ubuntu / Linux Mint
 
@@ -267,56 +273,94 @@ Per-user configuration and preferences under `~/.config` are intentionally prese
 
 ## Building From Source
 
-This project uses **.NET 8** and the modern SDK-style project format.
+Official `.deb`, `.rpm`, and `.pkg.tar.zst` packages are the recommended installation method.
+
+If your distribution is not covered by those packages, you want to test unreleased changes, or you need a custom build, the project can also be compiled directly from source.
+
+For more detailed build information, see [`BUILDING.md`](BUILDING.md).
 
 ### Prerequisites
 
-Install the .NET 8 SDK for your Linux distribution.
+You will need:
 
-Then clone the repository:
+* .NET 8 SDK
+* GNU Make
+* Git
+* The native GTK/libadwaita libraries required by the application
+
+Exact package names vary between distributions.
+
+Clone the repository:
 
 ```bash
 git clone https://github.com/devrainz/FLStudio-Linux-RPC.git
 cd FLStudio-Linux-RPC
 ```
 
-Restore the project dependencies:
+### Build
 
-```bash
-dotnet restore
-```
+The repository includes a `Makefile` so the common development and publishing commands are easier to reproduce.
 
 Build the project:
 
 ```bash
-dotnet build
+make
 ```
 
-Run it:
+or explicitly:
+
+```bash
+make build
+```
+
+Run through the .NET CLI while developing:
 
 ```bash
 dotnet run
 ```
 
-### Publishing a Linux x86-64 Build
+### Create a Self-Contained Build
 
-To create a self-contained Linux x86-64 build similar to the official releases:
+To create a standalone Linux x86-64 build:
 
 ```bash
-dotnet publish FLStudioRPC.csproj \
-  --configuration Release \
-  --runtime linux-x64 \
-  --self-contained true \
-  --output publish/linux-x64 \
-  /p:PublishSingleFile=true \
-  /p:IncludeNativeLibrariesForSelfExtract=true
+make publish
 ```
 
-The resulting executable will be:
+The resulting executable is placed under:
 
 ```text
-publish/linux-x64/FLStudioRPC
+build/publish/linux-x64/FLStudioRPC
 ```
+
+Run it directly with:
+
+```bash
+./build/publish/linux-x64/FLStudioRPC
+```
+
+You can select another .NET runtime identifier when needed:
+
+```bash
+make publish RID=linux-arm64
+```
+
+> [!NOTE]
+> Official releases are currently tested and distributed for **Linux x86-64**. Other runtime identifiers may build successfully, but are not officially supported unless explicitly stated.
+
+### Useful Make Targets
+
+```text
+make
+make build
+make restore
+make publish
+make package VERSION=X.Y.Z
+make clean
+make help
+```
+
+`make package VERSION=X.Y.Z` uses the same native packaging script as GitHub Actions and creates the supported Debian, RPM, and Arch Linux package formats.
 
 ### Creating Distribution Packages
 
@@ -364,6 +408,8 @@ FLStudio-Linux-RPC/
 │   └── workflows/
 │       ├── build-packages.yml
 │       └── release.yml
+├── BUILDING.md
+├── Makefile
 ├── FLStudioRPC.csproj
 ├── Program.cs
 └── README.md
