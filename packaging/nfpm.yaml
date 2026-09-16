@@ -71,6 +71,7 @@ overrides:
       - libgtk-4-1
       - libadwaita-1-0
       - hicolor-icon-theme
+      - x11-utils
   rpm:
     depends:
       - glibc
@@ -85,6 +86,7 @@ overrides:
       - gtk4
       - libadwaita
       - hicolor-icon-theme
+      - xwininfo
   archlinux:
     depends:
       - glibc
@@ -98,6 +100,7 @@ overrides:
       - gtk4
       - libadwaita
       - hicolor-icon-theme
+      - xorg-xwininfo
 
 rpm:
   compression: zstd

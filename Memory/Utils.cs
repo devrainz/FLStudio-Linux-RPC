@@ -1,8 +1,7 @@
 ﻿using System;
-using System.IO;
 using System.Diagnostics;
+using System.IO;
 using System.Text.RegularExpressions;
-using Console = Colorful.Console;
 
 public static class Logger
 {
@@ -93,331 +92,74 @@ public static class Logger
 public static class Utils
 {
     private static string? _lastWindowTitle;
+    private static string? _lastDetectedVersion;
+    private static bool _xwininfoFailureLogged;
 
-    private static string? _cachedFLStudioVersion;
+    private static readonly Regex FLStudioWindowTitlePattern =
+        new Regex(
+            @"^(?:(?<project>.+?)\s+-\s+)?(?<app>FL\s+Studio(?:\s+(?<version>(?:20\d{2}|\d{1,2})(?:\.\d+)*))?)\s*$",
+            RegexOptions.IgnoreCase |
+            RegexOptions.CultureInvariant |
+            RegexOptions.Compiled
+        );
 
-    private static DateTime
-        _nextVersionLookupUtc = DateTime.MinValue;
-
-    private static readonly Regex
-        FLStudioVersionPattern =
-            new Regex(
-                @"\bFL\s+Studio(?:\s+|[/_-])(?<version>(?:20\d{2}|\d{1,2})(?:\.\d+)*)(?=$|[^\d])",
-                RegexOptions.IgnoreCase |
-                RegexOptions.CultureInvariant |
-                RegexOptions.Compiled
-            );
-
-    private static readonly string[]
-        FLStudioProcessNames =
-        {
-            "FL.exe",
-            "FL32.exe",
-            "FL64.exe",
-            "FLStudio.exe"
-        };
-
-    private static bool IsFLStudioProcessCommandLine(
-        string commandLine)
-    {
-        string[] arguments =
-            commandLine.Split(
-                new[]
-                {
-                    '\0',
-                    ' ',
-                    '\t',
-                    '\n',
-                    '\r'
-                },
-                StringSplitOptions.RemoveEmptyEntries
-            );
-
-        foreach (string argument in arguments)
-        {
-            string fileName =
-                Path.GetFileName(
-                    argument.Trim('"')
-                        .Replace('\\', '/')
-                );
-
-            foreach (string processName in FLStudioProcessNames)
-            {
-                if (
-                    string.Equals(
-                        fileName,
-                        processName,
-                        StringComparison.OrdinalIgnoreCase
-                    )
-                )
-                {
-                    return true;
-                }
-            }
-        }
-
-        return false;
-    }
-
-    private static bool IsFLStudioWindowClass(
-        string windowClass)
-    {
-        string[] classNames =
-            windowClass.Split(
-                new[]
-                {
-                    ' ',
-                    '\t',
-                    ',',
-                    '"',
-                    '\''
-                },
-                StringSplitOptions.RemoveEmptyEntries
-            );
-
-        foreach (string className in classNames)
-        {
-            string fileName =
-                Path.GetFileName(
-                    className.Replace('\\', '/')
-                );
-
-            foreach (string processName in FLStudioProcessNames)
-            {
-                if (
-                    string.Equals(
-                        fileName,
-                        processName,
-                        StringComparison.OrdinalIgnoreCase
-                    )
-                    ||
-                    string.Equals(
-                        Path.GetFileNameWithoutExtension(fileName),
-                        Path.GetFileNameWithoutExtension(processName),
-                        StringComparison.OrdinalIgnoreCase
-                    )
-                )
-                {
-                    return true;
-                }
-            }
-        }
-
-        return false;
-    }
-
-    public static bool IsFLStudioRunning()
-    {
-        try
-        {
-            foreach (
-                string processDirectory in
-                Directory.EnumerateDirectories("/proc")
-            )
-            {
-                string processId =
-                    Path.GetFileName(processDirectory);
-
-                if (!int.TryParse(processId, out _))
-                {
-                    continue;
-                }
-
-                string commandLinePath =
-                    Path.Combine(
-                        processDirectory,
-                        "cmdline"
-                    );
-
-                if (
-                    File.Exists(commandLinePath)
-                    &&
-                    IsFLStudioProcessCommandLine(
-                        File.ReadAllText(commandLinePath)
-                    )
-                )
-                {
-                    return true;
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-            Logger.Error(
-                "Could not scan Linux processes for FL Studio",
-                ex
-            );
-        }
-
-        return false;
-    }
-
-    private static string? ExtractFLStudioVersion(
-        string? source)
-    {
-        if (string.IsNullOrWhiteSpace(source))
-        {
-            return null;
-        }
-
-        string normalizedSource =
-            source.Replace("\\040", " ")
-                .Replace('\\', '/');
-
-        Match match =
-            FLStudioVersionPattern.Match(
-                normalizedSource
-            );
-
-        return match.Success
-            ? match.Groups["version"].Value
-            : null;
-    }
-
-    private static string? FindFLStudioVersionFromProcess()
-    {
-        try
-        {
-            foreach (
-                string processDirectory in
-                Directory.EnumerateDirectories("/proc")
-            )
-            {
-                string processId =
-                    Path.GetFileName(processDirectory);
-
-                if (!int.TryParse(processId, out _))
-                {
-                    continue;
-                }
-
-                string commandLinePath =
-                    Path.Combine(
-                        processDirectory,
-                        "cmdline"
-                    );
-
-                string commandLine;
-
-                try
-                {
-                    commandLine =
-                        File.ReadAllText(
-                            commandLinePath
-                        );
-                }
-                catch
-                {
-                    continue;
-                }
-
-                if (!IsFLStudioProcessCommandLine(commandLine))
-                {
-                    continue;
-                }
-
-                string? version =
-                    ExtractFLStudioVersion(
-                        commandLine
-                    );
-
-                if (!string.IsNullOrWhiteSpace(version))
-                {
-                    Logger.Info(
-                        $"Detected FL Studio version {version} from process command line"
-                    );
-
-                    return version;
-                }
-
-                try
-                {
-                    string processMapsPath =
-                        Path.Combine(
-                            processDirectory,
-                            "maps"
-                        );
-
-                    version =
-                        ExtractFLStudioVersion(
-                            File.ReadAllText(
-                                processMapsPath
-                            )
-                        );
-
-                    if (!string.IsNullOrWhiteSpace(version))
-                    {
-                        Logger.Info(
-                            $"Detected FL Studio version {version} from process mappings"
-                        );
-
-                        return version;
-                    }
-                }
-                catch
-                {
-
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-            Logger.Error(
-                "Could not detect the FL Studio version from its process",
-                ex
-            );
-        }
-
-        return null;
-    }
-
-    public static string? GetMainWindowsTitleByProcessNames(
-        params string[] processNames)
+    private static string? GetFLStudioWindowTitle()
     {
         try
         {
             ProcessStartInfo psi =
                 new ProcessStartInfo
                 {
-                    FileName = "/bin/bash",
-                    Arguments = "-c \"xwininfo -root -tree\"",
+                    FileName = "xwininfo",
+                    Arguments = "-root -tree",
                     RedirectStandardOutput = true,
+                    RedirectStandardError = true,
                     UseShellExecute = false,
                     CreateNoWindow = true
                 };
 
-            using Process? process =
-                Process.Start(psi);
+            using Process? process = Process.Start(psi);
 
             if (process == null)
             {
+                LogXwininfoFailureOnce(
+                    "Could not start xwininfo"
+                );
+
                 return null;
             }
 
             string output =
                 process.StandardOutput.ReadToEnd();
 
+            string error =
+                process.StandardError.ReadToEnd();
+
             process.WaitForExit();
 
-            string? fallbackTitle = null;
+            if (process.ExitCode != 0)
+            {
+                string message =
+                    string.IsNullOrWhiteSpace(error)
+                    ? $"xwininfo exited with code {process.ExitCode}"
+                    : $"xwininfo exited with code {process.ExitCode}: {error.Trim()}";
+
+                LogXwininfoFailureOnce(message);
+                return null;
+            }
+
+            _xwininfoFailureLogged = false;
 
             foreach (string line in output.Split('\n'))
             {
-                if (!line.Contains("\""))
+                string trimmed = line.TrimStart();
+
+                if (!trimmed.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
                 {
                     continue;
                 }
 
-                string trimmed =
-                    line.Trim();
-
-                if (!trimmed.StartsWith("0x"))
-                {
-                    continue;
-                }
-
-                int firstQuote =
-                    line.IndexOf('"');
+                int firstQuote = line.IndexOf('"');
 
                 if (firstQuote == -1)
                 {
@@ -425,48 +167,9 @@ public static class Utils
                 }
 
                 int secondQuote =
-                    line.IndexOf(
-                        '"',
-                        firstQuote + 1
-                    );
+                    line.IndexOf('"', firstQuote + 1);
 
                 if (secondQuote == -1)
-                {
-                    continue;
-                }
-
-                int classStart =
-                    line.IndexOf(
-                        ": (",
-                        secondQuote,
-                        StringComparison.Ordinal
-                    );
-
-                if (classStart == -1)
-                {
-                    continue;
-                }
-
-                classStart += 3;
-
-                int classEnd =
-                    line.IndexOf(
-                        ')',
-                        classStart
-                    );
-
-                if (classEnd == -1)
-                {
-                    continue;
-                }
-
-                string windowClass =
-                    line.Substring(
-                        classStart,
-                        classEnd - classStart
-                    );
-
-                if (!IsFLStudioWindowClass(windowClass))
                 {
                     continue;
                 }
@@ -475,168 +178,135 @@ public static class Utils
                     line.Substring(
                         firstQuote + 1,
                         secondQuote - firstQuote - 1
-                    );
+                    ).Trim();
 
-                if (
-                    title.Contains(
-                        "Visual Studio Code",
-                        StringComparison.OrdinalIgnoreCase
-                    )
-                )
+                if (string.IsNullOrWhiteSpace(title))
                 {
                     continue;
                 }
 
-                if (
-                    title.Contains(
-                        "FLHintBarForm",
-                        StringComparison.OrdinalIgnoreCase
-                    )
-                )
+                if (!FLStudioWindowTitlePattern.IsMatch(title))
                 {
                     continue;
                 }
 
-                if (
-                    title.Contains(
-                        "FL Studio",
-                        StringComparison.OrdinalIgnoreCase
-                    )
-                )
-                {
-                    if (title != _lastWindowTitle)
-                    {
-                        Logger.Info(
-                            $"Window title changed: '{_lastWindowTitle}' -> '{title}'"
-                        );
-
-                        _lastWindowTitle = title;
-                    }
-
-                    return title;
-                }
-
-                if (
-                    !string.IsNullOrWhiteSpace(title)
-                    &&
-                    fallbackTitle == null
-                )
-                {
-                    fallbackTitle = title;
-                }
-            }
-
-            if (fallbackTitle != null)
-            {
-                if (fallbackTitle != _lastWindowTitle)
+                if (!string.Equals(
+                        title,
+                        _lastWindowTitle,
+                        StringComparison.Ordinal))
                 {
                     Logger.Info(
-                        $"Window title changed: '{_lastWindowTitle}' -> '{fallbackTitle}'"
+                        $"FL Studio window title changed: '{_lastWindowTitle}' -> '{title}'"
                     );
 
-                    _lastWindowTitle = fallbackTitle;
+                    _lastWindowTitle = title;
                 }
 
-                return fallbackTitle;
+                return title;
             }
+
+            if (_lastWindowTitle != null)
+            {
+                Logger.Info(
+                    "FL Studio window no longer detected by xwininfo"
+                );
+            }
+
+            _lastWindowTitle = null;
+            _lastDetectedVersion = null;
+
+            return null;
         }
         catch (Exception ex)
         {
-            Logger.Error(
-                "Linux window detection failed",
-                ex
-            );
+            if (!_xwininfoFailureLogged)
+            {
+                Logger.Error(
+                    "FL Studio xwininfo detection failed",
+                    ex
+                );
+
+                _xwininfoFailureLogged = true;
+            }
+
+            return null;
+        }
+    }
+
+    private static void LogXwininfoFailureOnce(
+        string message)
+    {
+        if (_xwininfoFailureLogged)
+        {
+            return;
         }
 
-        return null;
+        Logger.Error(message);
+        _xwininfoFailureLogged = true;
     }
 
     public static FLInfo GetFLInfo()
     {
-        FLInfo info =
-            new FLInfo();
+        FLInfo info = new FLInfo();
 
-        if (!IsFLStudioRunning())
+        string? fullTitle =
+            GetFLStudioWindowTitle();
+
+        if (string.IsNullOrWhiteSpace(fullTitle))
         {
-            _lastWindowTitle = null;
-            _cachedFLStudioVersion = null;
-            _nextVersionLookupUtc = DateTime.MinValue;
-
             info.ProjectName = null;
             info.AppName = null;
 
             return info;
         }
 
-        string? fullTitle =
-            GetMainWindowsTitleByProcessNames("FL");
+        Match match =
+            FLStudioWindowTitlePattern.Match(fullTitle);
 
-        string? version =
-            ExtractFLStudioVersion(
-                fullTitle
-            );
-
-        if (!string.IsNullOrWhiteSpace(version))
-        {
-            if (
-                !string.Equals(
-                    _cachedFLStudioVersion,
-                    version,
-                    StringComparison.OrdinalIgnoreCase
-                )
-            )
-            {
-                Logger.Info(
-                    $"Detected FL Studio version {version} from window title"
-                );
-            }
-
-            _cachedFLStudioVersion =
-                version;
-        }
-        else if (
-            string.IsNullOrWhiteSpace(
-                _cachedFLStudioVersion
-            )
-            &&
-            DateTime.UtcNow >= _nextVersionLookupUtc
-        )
-        {
-
-            _nextVersionLookupUtc =
-                DateTime.UtcNow.AddSeconds(30);
-
-            _cachedFLStudioVersion =
-                FindFLStudioVersionFromProcess();
-        }
-
-        if (string.IsNullOrWhiteSpace(fullTitle))
+        if (!match.Success)
         {
             info.ProjectName = null;
-        }
-        else
-        {
-            int hyphenIndex =
-                fullTitle.LastIndexOf(
-                    " - ",
-                    StringComparison.Ordinal
-                );
+            info.AppName = null;
 
-            info.ProjectName =
-                hyphenIndex == -1
-                ? null
-                : fullTitle.Substring(
-                    0,
-                    hyphenIndex
-                ).Trim();
+            return info;
         }
 
-        info.AppName =
-            string.IsNullOrWhiteSpace(
-                _cachedFLStudioVersion
+        string appName =
+            match.Groups["app"].Value.Trim();
+
+        string? projectName =
+            match.Groups["project"].Success
+            ? match.Groups["project"].Value.Trim()
+            : null;
+
+        string? version =
+            match.Groups["version"].Success
+            ? match.Groups["version"].Value.Trim()
+            : null;
+
+        if (
+            !string.IsNullOrWhiteSpace(version)
+            &&
+            !string.Equals(
+                version,
+                _lastDetectedVersion,
+                StringComparison.OrdinalIgnoreCase
             )
-            ? "FL Studio"
-            : $"FL Studio {_cachedFLStudioVersion}";
+        )
+        {
+            Logger.Info(
+                $"Detected FL Studio version {version} from xwininfo window title"
+            );
+
+            _lastDetectedVersion = version;
+        }
+
+        info.ProjectName =
+            string.IsNullOrWhiteSpace(projectName)
+            ? null
+            : projectName;
+
+        info.AppName = appName;
 
         return info;
     }
