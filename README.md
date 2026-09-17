@@ -63,7 +63,7 @@ Currently supported:
 
 * **Linux x86-64**
 * **FL Studio running through Wine, Proton, or another compatible Wine environment**
-* **Discord**
+* **Discord**, including the official Flathub `com.discordapp.Discord` package
 
 The application is currently distributed as a Linux x86-64 build.
 
@@ -124,7 +124,7 @@ The package manager installs and owns:
 * FL Studio RPC icons under `/usr/share/icons/hicolor/`
 * The packaged license file
 
-Required GTK4/libadwaita dependencies are declared by the package for each supported package format.
+Required GTK4/libadwaita and X11/XWayland inspection dependencies are declared by the package for each supported package format. This includes both `xwininfo` and `xprop`, which are used to identify FL Studio and its focused child windows safely.
 
 After installation, **FL Studio Discord RPC** should appear in your application menu. You can also launch it directly with:
 
@@ -156,6 +156,22 @@ Once started, FL Studio Discord RPC runs in the background and monitors your sys
 When FL Studio is detected, the application updates your Discord Rich Presence with information about the current FL Studio session.
 
 When FL Studio is closed, the Discord activity is cleared automatically.
+
+### Discord installations
+
+The RPC connection supports both ordinary host installations of Discord and the official Flathub package:
+
+```text
+com.discordapp.Discord
+```
+
+For Flatpak Discord, the application checks the host-visible IPC bridge under:
+
+```text
+$XDG_RUNTIME_DIR/app/com.discordapp.Discord/discord-ipc-*
+```
+
+Discord must be running before the Rich Presence connection can be established. If Discord starts later or restarts, FL Studio Linux RPC keeps retrying the connection automatically.
 
 ### System Tray
 
@@ -287,6 +303,7 @@ You will need:
 * GNU Make
 * Git
 * The native GTK/libadwaita libraries required by the application
+* `xwininfo` and `xprop`
 
 Exact package names vary between distributions.
 

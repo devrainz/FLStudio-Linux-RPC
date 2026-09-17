@@ -16,6 +16,7 @@ You will need:
 - GNU Make
 - Git
 - The native GTK/libadwaita libraries required by the application
+- `xwininfo` and `xprop`
 
 Package names differ between distributions.
 
