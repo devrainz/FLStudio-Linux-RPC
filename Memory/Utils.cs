@@ -57,7 +57,6 @@ public static class Logger
         }
         catch
         {
-            // Logging must never stop the RPC loop.
         }
     }
 
@@ -90,6 +89,10 @@ public static class Utils
     private static DateTime _nextVersionLookupUtc = DateTime.MinValue;
     private static bool _xwininfoFailureLogged;
     private static bool _xpropFailureLogged;
+    private static FLInfo _lastKnownFLInfo;
+    private static int _consecutiveMissingDetections;
+
+    private const int RequiredMissingDetections = 3;
 
     private static readonly string[] FLStudioProcessNames =
     {
@@ -144,6 +147,8 @@ public static class Utils
         public string? SelectedTitle { get; init; }
 
         public string? MainTitle { get; init; }
+
+        public bool HasFLStudioWindow { get; init; }
     }
 
     private static bool IsFLStudioProcessCommandLine(string commandLine)
@@ -283,7 +288,6 @@ public static class Utils
                 }
                 catch
                 {
-                    // Processes can exit while /proc is being scanned.
                 }
             }
         }
@@ -348,9 +352,11 @@ public static class Utils
 
             int slashCount = 0;
 
-            for (int slash = index - 1;
+            for (
+                int slash = index - 1;
                 slash >= 0 && value[slash] == '\\';
-                slash--)
+                slash--
+            )
             {
                 slashCount++;
             }
@@ -368,19 +374,32 @@ public static class Utils
     {
         string trimmed = line.TrimStart();
 
-        if (!trimmed.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
+        if (!trimmed.StartsWith(
+                "0x",
+                StringComparison.OrdinalIgnoreCase))
         {
             return null;
         }
 
-        int idEnd = trimmed.IndexOfAny(new[] { ' ', '\t' });
+        int idEnd =
+            trimmed.IndexOfAny(
+                new[]
+                {
+                    ' ',
+                    '\t'
+                }
+            );
 
         if (idEnd == -1)
         {
             return null;
         }
 
-        string idText = trimmed.Substring(2, idEnd - 2);
+        string idText =
+            trimmed.Substring(
+                2,
+                idEnd - 2
+            );
 
         if (!ulong.TryParse(
                 idText,
@@ -399,7 +418,10 @@ public static class Utils
         }
 
         int secondQuote =
-            FindClosingQuote(line, firstQuote);
+            FindClosingQuote(
+                line,
+                firstQuote
+            );
 
         if (secondQuote == -1)
         {
@@ -420,7 +442,11 @@ public static class Utils
 
         classStart += 3;
 
-        int classEnd = line.IndexOf(')', classStart);
+        int classEnd =
+            line.IndexOf(
+                ')',
+                classStart
+            );
 
         if (classEnd == -1)
         {
@@ -462,7 +488,11 @@ public static class Utils
                     out string error
                 );
 
-            if (exitCode != 0 || string.IsNullOrWhiteSpace(output))
+            if (
+                exitCode != 0
+                ||
+                string.IsNullOrWhiteSpace(output)
+            )
             {
                 if (!_xpropFailureLogged)
                 {
@@ -481,7 +511,8 @@ public static class Utils
                 return null;
             }
 
-            Match match = HexWindowIdPattern.Match(output);
+            Match match =
+                HexWindowIdPattern.Match(output);
 
             if (
                 !match.Success
@@ -500,6 +531,7 @@ public static class Utils
             }
 
             _xpropFailureLogged = false;
+
             return windowId;
         }
         catch (Exception ex)
@@ -529,14 +561,20 @@ public static class Utils
                     out _
                 );
 
-            if (exitCode != 0 || string.IsNullOrWhiteSpace(output))
+            if (
+                exitCode != 0
+                ||
+                string.IsNullOrWhiteSpace(output)
+            )
             {
                 return null;
             }
 
-            Match match = ProcessIdPattern.Match(output);
+            Match match =
+                ProcessIdPattern.Match(output);
 
-            return match.Success
+            return
+                match.Success
                 &&
                 int.TryParse(
                     match.Groups["pid"].Value,
@@ -582,7 +620,11 @@ public static class Utils
                     out string error
                 );
 
-            if (exitCode != 0 || string.IsNullOrWhiteSpace(output))
+            if (
+                exitCode != 0
+                ||
+                string.IsNullOrWhiteSpace(output)
+            )
             {
                 if (!_xwininfoFailureLogged)
                 {
@@ -603,19 +645,26 @@ public static class Utils
 
             _xwininfoFailureLogged = false;
 
-            var ownedWindows = new List<WindowInfo>();
+            var ownedWindows =
+                new List<WindowInfo>();
+
             WindowInfo? mainWindow = null;
 
             foreach (string line in output.Split('\n'))
             {
-                WindowInfo? window = ParseXwininfoLine(line);
+                WindowInfo? window =
+                    ParseXwininfoLine(line);
 
                 if (
                     window == null
                     ||
-                    IsIgnoredFLStudioWindow(window.Title)
+                    IsIgnoredFLStudioWindow(
+                        window.Title
+                    )
                     ||
-                    !IsFLStudioWindowClass(window.WindowClass)
+                    !IsFLStudioWindowClass(
+                        window.WindowClass
+                    )
                 )
                 {
                     continue;
@@ -626,14 +675,18 @@ public static class Utils
                 if (
                     mainWindow == null
                     &&
-                    FLStudioMainWindowPattern.IsMatch(window.Title)
+                    FLStudioMainWindowPattern.IsMatch(
+                        window.Title
+                    )
                 )
                 {
                     mainWindow = window;
                 }
             }
 
-            ulong? activeWindowId = GetActiveWindowId();
+            ulong? activeWindowId =
+                GetActiveWindowId();
+
             WindowInfo? activeFLWindow = null;
 
             if (activeWindowId.HasValue)
@@ -647,32 +700,37 @@ public static class Utils
                     }
                 }
 
-                // Some Wine dialogs use a different WM_CLASS. Accept those
-                // only when the active X11 window belongs to the FL process.
                 if (activeFLWindow == null)
                 {
                     foreach (string line in output.Split('\n'))
                     {
-                        WindowInfo? window = ParseXwininfoLine(line);
+                        WindowInfo? window =
+                            ParseXwininfoLine(line);
 
                         if (
                             window == null
                             ||
                             window.Id != activeWindowId.Value
                             ||
-                            IsIgnoredFLStudioWindow(window.Title)
+                            IsIgnoredFLStudioWindow(
+                                window.Title
+                            )
                         )
                         {
                             continue;
                         }
 
                         int? ownerProcessId =
-                            GetWindowProcessId(window.Id);
+                            GetWindowProcessId(
+                                window.Id
+                            );
 
                         if (
                             ownerProcessId.HasValue
                             &&
-                            IsFLStudioProcess(ownerProcessId.Value)
+                            IsFLStudioProcess(
+                                ownerProcessId.Value
+                            )
                         )
                         {
                             activeFLWindow = window;
@@ -687,25 +745,27 @@ public static class Utils
 
             if (activeFLWindow != null)
             {
+
                 selectedWindow = activeFLWindow;
             }
             else if (activeWindowId.HasValue)
             {
-                // Another application is focused. Keep showing the main FL
-                // project instead of a random background FL dialog.
+
                 selectedWindow = mainWindow;
             }
             else
             {
-                // xprop is optional. XQueryTree is returned in stacking
-                // order, so the final owned entry is the best fallback.
+
                 selectedWindow =
                     ownedWindows.Count > 0
-                    ? ownedWindows[ownedWindows.Count - 1]
+                    ? ownedWindows[
+                        ownedWindows.Count - 1
+                    ]
                     : mainWindow;
             }
 
-            string? selectedTitle = selectedWindow?.Title;
+            string? selectedTitle =
+                selectedWindow?.Title;
 
             if (!string.Equals(
                     selectedTitle,
@@ -716,13 +776,22 @@ public static class Utils
                     $"FL Studio window changed: '{_lastWindowTitle}' -> '{selectedTitle}'"
                 );
 
-                _lastWindowTitle = selectedTitle;
+                _lastWindowTitle =
+                    selectedTitle;
             }
 
             return new FLWindowState
             {
-                SelectedTitle = selectedTitle,
-                MainTitle = mainWindow?.Title
+                SelectedTitle =
+                    selectedTitle,
+
+                MainTitle =
+                    mainWindow?.Title,
+
+                HasFLStudioWindow =
+                    ownedWindows.Count > 0
+                    ||
+                    activeFLWindow != null
             };
         }
         catch (Exception ex)
@@ -744,12 +813,16 @@ public static class Utils
     public static string? GetMainWindowsTitleByProcessNames(
         params string[] processNames)
     {
-        // Kept public for compatibility with the older Utils.cs API.
+
         _ = processNames;
-        return GetFLStudioWindowState().SelectedTitle;
+
+        return
+            GetFLStudioWindowState()
+                .SelectedTitle;
     }
 
-    private static string? ExtractFLStudioVersion(string? source)
+    private static string? ExtractFLStudioVersion(
+        string? source)
     {
         if (string.IsNullOrWhiteSpace(source))
         {
@@ -761,7 +834,9 @@ public static class Utils
                 .Replace('\\', '/');
 
         Match match =
-            FLStudioVersionPattern.Match(normalizedSource);
+            FLStudioVersionPattern.Match(
+                normalizedSource
+            );
 
         return match.Success
             ? match.Groups["version"].Value
@@ -775,7 +850,10 @@ public static class Utils
             foreach (string processDirectory in
                 Directory.EnumerateDirectories("/proc"))
             {
-                string processId = Path.GetFileName(processDirectory);
+                string processId =
+                    Path.GetFileName(
+                        processDirectory
+                    );
 
                 if (!int.TryParse(processId, out _))
                 {
@@ -788,7 +866,10 @@ public static class Utils
                 {
                     commandLine =
                         File.ReadAllText(
-                            Path.Combine(processDirectory, "cmdline")
+                            Path.Combine(
+                                processDirectory,
+                                "cmdline"
+                            )
                         );
                 }
                 catch
@@ -802,7 +883,9 @@ public static class Utils
                 }
 
                 string? version =
-                    ExtractFLStudioVersion(commandLine);
+                    ExtractFLStudioVersion(
+                        commandLine
+                    );
 
                 if (!string.IsNullOrWhiteSpace(version))
                 {
@@ -814,7 +897,10 @@ public static class Utils
                     version =
                         ExtractFLStudioVersion(
                             File.ReadAllText(
-                                Path.Combine(processDirectory, "maps")
+                                Path.Combine(
+                                    processDirectory,
+                                    "maps"
+                                )
                             )
                         );
 
@@ -825,7 +911,7 @@ public static class Utils
                 }
                 catch
                 {
-                    // Some /proc entries are not readable by this process.
+
                 }
             }
         }
@@ -840,7 +926,8 @@ public static class Utils
         return null;
     }
 
-    private static string? ExtractProjectName(string? mainTitle)
+    private static string? ExtractProjectName(
+        string? mainTitle)
     {
         if (string.IsNullOrWhiteSpace(mainTitle))
         {
@@ -848,17 +935,26 @@ public static class Utils
         }
 
         Match match =
-            FLStudioMainWindowPattern.Match(mainTitle);
+            FLStudioMainWindowPattern.Match(
+                mainTitle
+            );
 
-        if (!match.Success || !match.Groups["project"].Success)
+        if (
+            !match.Success
+            ||
+            !match.Groups["project"].Success
+        )
         {
             return null;
         }
 
         string projectName =
-            match.Groups["project"].Value.Trim();
+            match.Groups["project"]
+                .Value
+                .Trim();
 
-        return string.IsNullOrWhiteSpace(projectName)
+        return
+            string.IsNullOrWhiteSpace(projectName)
             ? null
             : projectName;
     }
@@ -866,23 +962,28 @@ public static class Utils
     private static string? GetFocusedFLStudioContext(
         FLWindowState windowState)
     {
-        string? selectedTitle = windowState.SelectedTitle;
+        string? selectedTitle =
+            windowState.SelectedTitle;
 
         if (string.IsNullOrWhiteSpace(selectedTitle))
         {
-            return ExtractProjectName(windowState.MainTitle);
+            return ExtractProjectName(
+                windowState.MainTitle
+            );
         }
 
         Match selectedMainMatch =
-            FLStudioMainWindowPattern.Match(selectedTitle);
+            FLStudioMainWindowPattern.Match(
+                selectedTitle
+            );
 
         if (selectedMainMatch.Success)
         {
-            return ExtractProjectName(selectedTitle);
+            return ExtractProjectName(
+                selectedTitle
+            );
         }
 
-        // This is an FL-owned auxiliary window, such as Settings, Mixer,
-        // Piano roll, Channel rack, a plugin editor, or the credits window.
         return selectedTitle;
     }
 
@@ -890,22 +991,51 @@ public static class Utils
     {
         FLInfo info = new FLInfo();
 
-        if (!IsFLStudioRunning())
-        {
-            _lastWindowTitle = null;
-            _cachedFLStudioVersion = null;
-            _nextVersionLookupUtc = DateTime.MinValue;
-
-            return info;
-        }
+        bool processDetected =
+            IsFLStudioRunning();
 
         FLWindowState windowState =
             GetFLStudioWindowState();
 
+        bool flStudioDetected =
+            processDetected
+            ||
+            windowState.HasFLStudioWindow;
+
+        if (!flStudioDetected)
+        {
+            _consecutiveMissingDetections++;
+
+            if (
+                _consecutiveMissingDetections
+                    < RequiredMissingDetections
+                &&
+                !string.IsNullOrWhiteSpace(
+                    _lastKnownFLInfo.AppName
+                )
+            )
+            {
+                return _lastKnownFLInfo;
+            }
+
+            _lastWindowTitle = null;
+            _cachedFLStudioVersion = null;
+            _nextVersionLookupUtc = DateTime.MinValue;
+            _lastKnownFLInfo = default;
+
+            return info;
+        }
+
+        _consecutiveMissingDetections = 0;
+
         string? version =
-            ExtractFLStudioVersion(windowState.MainTitle)
+            ExtractFLStudioVersion(
+                windowState.MainTitle
+            )
             ??
-            ExtractFLStudioVersion(windowState.SelectedTitle);
+            ExtractFLStudioVersion(
+                windowState.SelectedTitle
+            );
 
         if (!string.IsNullOrWhiteSpace(version))
         {
@@ -919,12 +1049,16 @@ public static class Utils
                 );
             }
 
-            _cachedFLStudioVersion = version;
+            _cachedFLStudioVersion =
+                version;
         }
         else if (
-            string.IsNullOrWhiteSpace(_cachedFLStudioVersion)
+            string.IsNullOrWhiteSpace(
+                _cachedFLStudioVersion
+            )
             &&
-            DateTime.UtcNow >= _nextVersionLookupUtc
+            DateTime.UtcNow >=
+                _nextVersionLookupUtc
         )
         {
             _nextVersionLookupUtc =
@@ -933,7 +1067,8 @@ public static class Utils
             _cachedFLStudioVersion =
                 FindFLStudioVersionFromProcess();
 
-            if (!string.IsNullOrWhiteSpace(_cachedFLStudioVersion))
+            if (!string.IsNullOrWhiteSpace(
+                    _cachedFLStudioVersion))
             {
                 Logger.Info(
                     $"Detected FL Studio version {_cachedFLStudioVersion} from its process"
@@ -942,12 +1077,40 @@ public static class Utils
         }
 
         info.AppName =
-            string.IsNullOrWhiteSpace(_cachedFLStudioVersion)
+            string.IsNullOrWhiteSpace(
+                _cachedFLStudioVersion
+            )
             ? "FL Studio"
             : $"FL Studio {_cachedFLStudioVersion}";
 
         info.ProjectName =
-            GetFocusedFLStudioContext(windowState);
+            GetFocusedFLStudioContext(
+                windowState
+            );
+
+        if (
+            string.IsNullOrWhiteSpace(
+                info.ProjectName
+            )
+            &&
+            string.IsNullOrWhiteSpace(
+                windowState.SelectedTitle
+            )
+            &&
+            string.IsNullOrWhiteSpace(
+                windowState.MainTitle
+            )
+            &&
+            !string.IsNullOrWhiteSpace(
+                _lastKnownFLInfo.ProjectName
+            )
+        )
+        {
+            info.ProjectName =
+                _lastKnownFLInfo.ProjectName;
+        }
+
+        _lastKnownFLInfo = info;
 
         return info;
     }
