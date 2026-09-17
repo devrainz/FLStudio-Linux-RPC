@@ -15,7 +15,7 @@
 
 
   <ItemGroup>
-    <PackageReference Include="DiscordRichPresence" Version="1.2.1.24" />
+    <PackageReference Include="DiscordRichPresence" Version="1.6.1.70" />
     <PackageReference Include="Colorful.Console" Version="1.2.15" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
     <PackageReference Include="Tmds.DBus" Version="0.94.2" />
