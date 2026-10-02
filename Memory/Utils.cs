@@ -1,4 +1,4 @@
-﻿using System;
+﻿﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
@@ -661,7 +661,19 @@ public static class Utils
                     IsIgnoredFLStudioWindow(
                         window.Title
                     )
-                    ||
+                )
+                {
+                    continue;
+                }
+
+                bool isMainWindow =
+                    FLStudioMainWindowPattern.IsMatch(
+                        window.Title
+                    );
+
+                if (
+                    !isMainWindow
+                    &&
                     !IsFLStudioWindowClass(
                         window.WindowClass
                     )
@@ -675,9 +687,7 @@ public static class Utils
                 if (
                     mainWindow == null
                     &&
-                    FLStudioMainWindowPattern.IsMatch(
-                        window.Title
-                    )
+                    isMainWindow
                 )
                 {
                     mainWindow = window;
@@ -745,17 +755,14 @@ public static class Utils
 
             if (activeFLWindow != null)
             {
-
                 selectedWindow = activeFLWindow;
             }
             else if (activeWindowId.HasValue)
             {
-
                 selectedWindow = mainWindow;
             }
             else
             {
-
                 selectedWindow =
                     ownedWindows.Count > 0
                     ? ownedWindows[
@@ -813,7 +820,6 @@ public static class Utils
     public static string? GetMainWindowsTitleByProcessNames(
         params string[] processNames)
     {
-
         _ = processNames;
 
         return
@@ -911,7 +917,6 @@ public static class Utils
                 }
                 catch
                 {
-
                 }
             }
         }
